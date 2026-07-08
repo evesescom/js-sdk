@@ -241,6 +241,34 @@ test('proxies.resetSessions posts to /sessions/reset', async () => {
   assert.equal(calls[0].init.method, 'POST');
 });
 
+test('proxies.endpoints maps regions, ports and protocols', async () => {
+  const { fn, calls } = makeFetch([
+    {
+      status: 200,
+      body: {
+        regions: [
+          { code: 'auto', host: 'proxy.eveses.com', label: 'Automatic (nearest)' },
+          { code: 'us', host: 'us.proxy.eveses.com', label: 'United States' },
+        ],
+        ports: { http: [12321, 11200], socks5: [32325, 51200] },
+        protocols: ['http', 'socks5'],
+      },
+    },
+  ]);
+  const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
+  const ep = await client.proxies.endpoints();
+
+  assert.equal(calls[0].url, 'https://x.test/api/account/proxies/endpoints');
+  assert.equal(calls[0].init.method, 'GET');
+  assert.equal(ep.regions.length, 2);
+  assert.equal(ep.regions[0].code, 'auto');
+  assert.equal(ep.regions[0].host, 'proxy.eveses.com');
+  assert.equal(ep.regions[0].label, 'Automatic (nearest)');
+  assert.deepEqual(ep.ports.http, [12321, 11200]);
+  assert.deepEqual(ep.ports.socks5, [32325, 51200]);
+  assert.deepEqual(ep.protocols, ['http', 'socks5']);
+});
+
 test('proxies.cancelSubscription posts to /subscription/cancel', async () => {
   const { fn, calls } = makeFetch([
     { status: 200, body: { status: 'cancelled', gb: 10, discount_pct: 15, next_renews_at: null, renew_failures: 0 } },

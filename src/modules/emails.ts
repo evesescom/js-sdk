@@ -2,7 +2,9 @@ import type { Eveses } from '../client';
 import type {
   EmailDomain,
   EmailDomainsResponse,
+  EmailMarkReadResult,
   EmailMessage,
+  EmailMessagesPage,
   EmailOrder,
   EmailPurchaseRequest,
   EmailQuote,
@@ -21,9 +23,19 @@ const BASE = '/api/account/emails';
 export class Emails {
   constructor(private readonly client: Eveses) {}
 
-  /** The user's rented addresses (list rows carry no messages). */
-  async list(): Promise<EmailOrder[]> {
-    const d = unwrap(await this.client.request<unknown>({ method: 'GET', path: BASE }));
+  /**
+   * The user's rented addresses (list rows carry no messages). Pass
+   * `includeReleased` to also return released/cancelled addresses (sent as
+   * `?include_released=1`; omitted otherwise).
+   */
+  async list(includeReleased = false): Promise<EmailOrder[]> {
+    const d = unwrap(
+      await this.client.request<unknown>({
+        method: 'GET',
+        path: BASE,
+        query: includeReleased ? { include_released: 1 } : undefined,
+      }),
+    );
     return mapArray(d.emails, mapOrder);
   }
 
@@ -89,6 +101,32 @@ export class Emails {
     return mapOrder(d);
   }
 
+  /**
+   * Paginated message feed for one address. `perPage` maps to the `per_page`
+   * query param. Like `get`, this also live-syncs reseller inboxes upstream.
+   */
+  async messages(uuid: string, page = 1, perPage = 20): Promise<EmailMessagesPage> {
+    const d = unwrap(
+      await this.client.request<unknown>({
+        method: 'GET',
+        path: `${BASE}/${encodeURIComponent(uuid)}/messages`,
+        query: { page, per_page: perPage },
+      }),
+    );
+    return mapMessagesPage(d);
+  }
+
+  /** Mark a single message read. */
+  async markRead(uuid: string, messageId: string): Promise<EmailMarkReadResult> {
+    const d = unwrap(
+      await this.client.request<unknown>({
+        method: 'POST',
+        path: `${BASE}/${encodeURIComponent(uuid)}/messages/${encodeURIComponent(messageId)}/read`,
+      }),
+    );
+    return mapMarkRead(d);
+  }
+
   /** Release an address (soft cancel — stops receiving; no refund). */
   async delete(uuid: string): Promise<EmailOrder> {
     const d = unwrap(
@@ -124,10 +162,34 @@ function mapOrder(value: unknown): EmailOrder {
 function mapMessage(value: unknown): EmailMessage {
   const r = obj(value);
   return {
+    id: str(r.id),
     from: str(r.from),
     subject: str(r.subject),
     body: str(r.body),
     receivedAt: str(r.received_at),
+    readAt: r.read_at === null ? null : str(r.read_at),
+    isRead: typeof r.is_read === 'boolean' ? r.is_read : undefined,
+    raw: r,
+  };
+}
+
+function mapMessagesPage(value: unknown): EmailMessagesPage {
+  const r = obj(value);
+  return {
+    messages: mapArray(r.messages, mapMessage),
+    page: num(r.page, 1),
+    perPage: num(r.per_page, 0),
+    total: num(r.total, 0),
+    hasMore: r.has_more === true,
+    raw: r,
+  };
+}
+
+function mapMarkRead(value: unknown): EmailMarkReadResult {
+  const r = obj(value);
+  return {
+    id: str(r.id) ?? '',
+    read: r.read === true,
     raw: r,
   };
 }

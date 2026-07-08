@@ -264,6 +264,22 @@ export interface StaticCatalogResponse {
   currency: string;
 }
 
+/** A selectable proxy region (gateway host + human label). */
+export interface ProxyEndpointRegion {
+  code: string;
+  host: string;
+  label?: string;
+  raw?: Record<string, unknown>;
+}
+
+/** Response of `client.proxies.endpoints` — gateway regions, ports, protocols. */
+export interface ProxyEndpoints {
+  regions: ProxyEndpointRegion[];
+  ports: { http: number[]; socks5: number[] };
+  protocols: string[];
+  raw?: Record<string, unknown>;
+}
+
 /**
  * A proxy quote. The wire shape varies by family (residential vs static), so
  * this is intentionally lenient: common fields are surfaced and the full
@@ -401,10 +417,33 @@ export interface WebUnblockerPurchaseRequest {
 
 /** A single received message. `body` may be plain text or HTML. */
 export interface EmailMessage {
+  /** Provider message id. Present on the paginated `messages(uuid)` feed. */
+  id?: string;
   from?: string;
   subject?: string;
   body?: string;
   receivedAt?: string;
+  /** When the message was marked read (null/absent if unread). */
+  readAt?: string | null;
+  /** Convenience read flag. */
+  isRead?: boolean;
+  raw?: Record<string, unknown>;
+}
+
+/** One page of an address's messages (response of `client.emails.messages`). */
+export interface EmailMessagesPage {
+  messages: EmailMessage[];
+  page: number;
+  perPage: number;
+  total: number;
+  hasMore: boolean;
+  raw?: Record<string, unknown>;
+}
+
+/** Response of `client.emails.markRead`. */
+export interface EmailMarkReadResult {
+  id: string;
+  read: boolean;
   raw?: Record<string, unknown>;
 }
 

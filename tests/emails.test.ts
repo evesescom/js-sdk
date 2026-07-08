@@ -132,6 +132,82 @@ test('emails.get fetches /{uuid} and maps messages (inbox refresh)', async () =>
   assert.equal(order.messages[0].receivedAt, '2026-06-24T10:00:00+00:00');
 });
 
+test('emails.list omits include_released query by default', async () => {
+  const { fn, calls } = makeFetch([{ status: 200, body: { emails: [] } }]);
+  const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
+  await client.emails.list();
+
+  const url = new URL(calls[0].url);
+  assert.equal(url.pathname, '/api/account/emails');
+  assert.equal(url.searchParams.has('include_released'), false);
+});
+
+test('emails.list sends include_released=1 when includeReleased true', async () => {
+  const { fn, calls } = makeFetch([{ status: 200, body: { emails: [] } }]);
+  const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
+  await client.emails.list(true);
+
+  const url = new URL(calls[0].url);
+  assert.equal(url.searchParams.get('include_released'), '1');
+});
+
+test('emails.messages fetches paginated feed with page/per_page and decodes', async () => {
+  const { fn, calls } = makeFetch([
+    {
+      status: 200,
+      body: {
+        messages: [
+          { id: 'msg-1', from: 'no-reply@svc.com', subject: 'Your code', body: '123456', received_at: '2026-06-24T10:00:00+00:00', read_at: null, is_read: false },
+        ],
+        page: 2,
+        per_page: 20,
+        total: 21,
+        has_more: false,
+      },
+    },
+  ]);
+  const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
+  const feed = await client.emails.messages('em-1', 2, 20);
+
+  const url = new URL(calls[0].url);
+  assert.equal(url.pathname, '/api/account/emails/em-1/messages');
+  assert.equal(url.searchParams.get('page'), '2');
+  assert.equal(url.searchParams.get('per_page'), '20');
+  assert.equal(calls[0].init.method, 'GET');
+  assert.equal(feed.page, 2);
+  assert.equal(feed.perPage, 20);
+  assert.equal(feed.total, 21);
+  assert.equal(feed.hasMore, false);
+  assert.equal(feed.messages.length, 1);
+  assert.equal(feed.messages[0].id, 'msg-1');
+  assert.equal(feed.messages[0].subject, 'Your code');
+  assert.equal(feed.messages[0].readAt, null);
+  assert.equal(feed.messages[0].isRead, false);
+});
+
+test('emails.messages defaults page=1 per_page=20', async () => {
+  const { fn, calls } = makeFetch([
+    { status: 200, body: { messages: [], page: 1, per_page: 20, total: 0, has_more: false } },
+  ]);
+  const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
+  await client.emails.messages('em-1');
+
+  const url = new URL(calls[0].url);
+  assert.equal(url.searchParams.get('page'), '1');
+  assert.equal(url.searchParams.get('per_page'), '20');
+});
+
+test('emails.markRead POSTs to /{uuid}/messages/{id}/read and decodes', async () => {
+  const { fn, calls } = makeFetch([{ status: 200, body: { id: 'msg-1', read: true } }]);
+  const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
+  const res = await client.emails.markRead('em-1', 'msg-1');
+
+  assert.equal(calls[0].url, 'https://x.test/api/account/emails/em-1/messages/msg-1/read');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.equal(res.id, 'msg-1');
+  assert.equal(res.read, true);
+});
+
 test('emails.delete DELETEs /{uuid} and returns cancelled address', async () => {
   const { fn, calls } = makeFetch([
     { status: 200, body: { uuid: 'em-1', address: 'a@x.io', domain: 'x.io', site: null, status: 'cancelled', price_cents: 30, currency: 'USD', message_count: 0, expires_at: null, created_at: '2026-06-24T00:00:00+00:00' } },

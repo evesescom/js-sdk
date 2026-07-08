@@ -1,5 +1,7 @@
 import type { Eveses } from '../client';
 import type {
+  ProxyEndpointRegion,
+  ProxyEndpoints,
   ProxyOrder,
   ProxyOverview,
   ProxyPurchaseRequest,
@@ -46,6 +48,12 @@ export class Proxies {
       packages: mapArray(d.packages, mapResidentialPackage),
       currency: str(d.currency) ?? 'USD',
     };
+  }
+
+  /** Connection endpoints — selectable gateway regions, ports, and protocols. */
+  async endpoints(): Promise<ProxyEndpoints> {
+    const d = unwrap(await this.client.request<unknown>({ method: 'GET', path: `${BASE}/endpoints` }));
+    return mapEndpoints(d);
   }
 
   /** Static (per-IP) catalogue — products / plans / locations with user prices. */
@@ -284,6 +292,27 @@ function mapStaticProduct(value: unknown): StaticProduct {
   };
 }
 
+function mapEndpoints(value: unknown): ProxyEndpoints {
+  const r = obj(value);
+  const ports = obj(r.ports);
+  return {
+    regions: mapArray(r.regions, mapEndpointRegion),
+    ports: { http: numArray(ports.http), socks5: numArray(ports.socks5) },
+    protocols: Array.isArray(r.protocols) ? r.protocols.filter((p): p is string => typeof p === 'string') : [],
+    raw: r,
+  };
+}
+
+function mapEndpointRegion(value: unknown): ProxyEndpointRegion {
+  const r = obj(value);
+  return {
+    code: str(r.code) ?? '',
+    host: str(r.host) ?? '',
+    label: str(r.label),
+    raw: r,
+  };
+}
+
 function mapQuote(value: unknown): ProxyQuote {
   const r = obj(value);
   return {
@@ -331,4 +360,8 @@ function bool(value: unknown): boolean {
 
 function mapArray<T>(value: unknown, fn: (v: unknown) => T): T[] {
   return Array.isArray(value) ? value.map(fn) : [];
+}
+
+function numArray(value: unknown): number[] {
+  return Array.isArray(value) ? value.filter((v): v is number => typeof v === 'number') : [];
 }

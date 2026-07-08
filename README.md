@@ -105,6 +105,9 @@ const { packages } = await client.proxies.packages();  // residential GB ladder
 const { products } = await client.proxies.catalog();   // static products/plans/locations
 //   a plan's priceCents === null ⇒ price it via quote()
 
+// Connection endpoints — selectable gateway regions, ports, protocols
+const { regions, ports, protocols } = await client.proxies.endpoints();
+
 // Quote — residential (per GB) or a static selection
 const gbQuote = await client.proxies.quote({ type: 'residential', gb: 5, subscription: true });
 const ipQuote = await client.proxies.quote({ type: 'isp', productId: 7, planId: 3, locationId: 9, quantity: 2 });
@@ -152,6 +155,7 @@ Rent an inbox address — on our catch-all domains or a reseller — and read it
 
 ```ts
 const addresses = await client.emails.list();
+const withReleased = await client.emails.list(true); // include released/cancelled addresses
 
 // Rentable domains (pass `site` for reseller providers; catch-all domains ignore it)
 const { domains } = await client.emails.domains({ site: 'shop.com' });
@@ -162,6 +166,14 @@ const order = await client.emails.purchase({ domain: 'x.io', idempotencyKey: 'uu
 // get(uuid) live-syncs reseller inboxes — it IS the inbox-refresh mechanism, so poll it.
 const inbox = await client.emails.get(order.uuid);
 for (const msg of inbox.messages) console.log(msg.subject, msg.body);
+
+// Paginated message feed (also live-syncs). perPage → per_page query param.
+const feed = await client.emails.messages(order.uuid, 1, 20);
+for (const msg of feed.messages) console.log(msg.id, msg.subject, msg.isRead);
+if (feed.hasMore) { /* fetch page 2 … */ }
+
+// Mark a single message read
+await client.emails.markRead(order.uuid, feed.messages[0].id!);
 
 await client.emails.delete(order.uuid);  // soft cancel — stops receiving, no refund
 ```
