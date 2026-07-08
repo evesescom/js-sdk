@@ -8,6 +8,7 @@ TypeScript, targeting Node 20+ with ESM and top-level `await`.
 | `quickstart.ts` | Construct the client, check wallet balance, list services, buy ONE activation with an idempotency key. |
 | `buy-and-poll.ts` | Full activation lifecycle: create → poll SMS every 5s for 5 min → `finish()` (or `cancel()` on Ctrl-C / timeout). |
 | `webhook-server.ts` | Minimal `node:http` server that verifies `X-Eveses-Signature` with `Webhooks.verify` and prints the parsed payload. |
+| `proxies-unblocker-emails.ts` | Tour of the proxies / web-unblocker / emails modules: quote → idempotent purchase → one management call each (proxy auto-renew, email inbox poll). |
 
 ## Prerequisites
 
@@ -35,4 +36,5 @@ Run any example with [`tsx`](https://github.com/privatenumber/tsx) (or
 npx tsx examples/quickstart.ts
 npx tsx examples/buy-and-poll.ts
 npx tsx examples/webhook-server.ts
+npx tsx examples/proxies-unblocker-emails.ts
 ```

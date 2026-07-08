@@ -149,3 +149,321 @@ export interface Paginated<T> {
   perPage: number;
   total: number;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Proxies
+//
+// Two families:
+//   - "residential" — metered, billed per GB (optional monthly subscription).
+//   - static per-IP — "isp" | "datacenter" | "ipv6" | "mobile" | "sneaker".
+//
+// The Eveses proxy endpoints return flat JSON (no `{data:...}` envelope); the
+// SDK maps snake_case → camelCase and keeps the original payload on `.raw`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Static (per-IP) proxy family. */
+export type ProxyStaticType = 'isp' | 'datacenter' | 'ipv6' | 'mobile' | 'sneaker';
+
+/** Any proxy type the API accepts on `type=`. */
+export type ProxyType = 'residential' | ProxyStaticType;
+
+/** White-label residential (metered) connection + remaining traffic. */
+export interface ResidentialAccess {
+  host: string;
+  ports: { http: number; socks5: number };
+  username: string;
+  password: string;
+  example: string;
+  curl: string;
+  trafficGbAvailable: number;
+  trafficGbUsed: number;
+}
+
+/** A residential (or web-unblocker) monthly subscription. */
+export interface ProxySubscription {
+  status: string;
+  /** Present for residential subscriptions (GB/month). */
+  gb?: number;
+  /** Present for web-unblocker subscriptions (requests/month). */
+  requests?: number;
+  discountPct: number;
+  nextRenewsAt?: string;
+  renewFailures: number;
+  raw?: Record<string, unknown>;
+}
+
+/** A single proxy order (residential top-up or a per-IP purchase). */
+export interface ProxyOrder {
+  uuid: string;
+  type: string;
+  kind: string;
+  gb: number | null;
+  quantity: number;
+  location?: string | null;
+  status: string;
+  priceCents: number;
+  currency: string;
+  proxies: unknown[] | null;
+  autoExtend: boolean;
+  extendable: boolean;
+  expiresAt?: string;
+  createdAt?: string;
+  raw?: Record<string, unknown>;
+}
+
+/** Response of `client.proxies.list`. */
+export interface ProxyOverview {
+  residential: ResidentialAccess | null;
+  subscription: ProxySubscription | null;
+  orders: ProxyOrder[];
+}
+
+/** A residential GB package rung (from the pricing ladder). */
+export interface ResidentialPackage {
+  gb: number;
+  perGbCents: number;
+  recommended?: boolean;
+  /** Original snake_case payload — carries any extra ladder fields. */
+  raw?: Record<string, unknown>;
+}
+
+/** Response of `client.proxies.packages`. */
+export interface ResidentialPackagesResponse {
+  packages: ResidentialPackage[];
+  currency: string;
+}
+
+/** A plan inside a static product. `priceCents === null` ⇒ price via /quote. */
+export interface StaticPlan {
+  id: number;
+  name?: string;
+  priceCents: number | null;
+  minQuantity?: number;
+  maxQuantity?: number;
+}
+
+/** A targetable location inside a static product. */
+export interface StaticLocation {
+  id: number;
+  name?: string;
+  outOfStock: boolean;
+}
+
+/** A static (per-IP) product with its plans + locations. */
+export interface StaticProduct {
+  id: number;
+  type: string;
+  name?: string;
+  plans: StaticPlan[];
+  locations: StaticLocation[];
+}
+
+/** Response of `client.proxies.catalog`. */
+export interface StaticCatalogResponse {
+  products: StaticProduct[];
+  currency: string;
+}
+
+/**
+ * A proxy quote. The wire shape varies by family (residential vs static), so
+ * this is intentionally lenient: common fields are surfaced and the full
+ * server map is kept on `.raw`.
+ */
+export interface ProxyQuote {
+  type?: string;
+  gb?: number;
+  quantity?: number;
+  priceCents?: number;
+  currency?: string;
+  discountPct?: number;
+  perGbCents?: number;
+  raw: Record<string, unknown>;
+}
+
+/** Input to `client.proxies.quote` (residential). */
+export interface ProxyResidentialQuoteRequest {
+  type?: 'residential';
+  gb: number;
+  subscription?: boolean;
+}
+
+/** Input to `client.proxies.quote` (static per-IP). */
+export interface ProxyStaticQuoteRequest {
+  type: ProxyStaticType;
+  productId: number;
+  planId: number;
+  locationId: number;
+  quantity?: number;
+}
+
+export type ProxyQuoteRequest = ProxyResidentialQuoteRequest | ProxyStaticQuoteRequest;
+
+/** Input to `client.proxies.purchase` (residential). */
+export interface ProxyResidentialPurchaseRequest {
+  type?: 'residential';
+  gb: number;
+  subscription?: boolean;
+  /** Optional idempotency key. Sent as the `Idempotency-Key` header. */
+  idempotencyKey?: string;
+}
+
+/** Input to `client.proxies.purchase` (static per-IP). */
+export interface ProxyStaticPurchaseRequest {
+  type: ProxyStaticType;
+  productId: number;
+  planId: number;
+  locationId: number;
+  locationName?: string;
+  quantity?: number;
+  /** Optional idempotency key. Sent as the `Idempotency-Key` header. */
+  idempotencyKey?: string;
+}
+
+export type ProxyPurchaseRequest = ProxyResidentialPurchaseRequest | ProxyStaticPurchaseRequest;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Web Unblocker — an anti-bot scraping endpoint, billed per successful request.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** White-label Web Unblocker connection + request quota. */
+export interface WebUnblockerAccess {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  example: string;
+  curl: string;
+  requestsPurchased: number;
+  requestsUsed: number;
+  requestsRemaining: number;
+}
+
+/** A single Web Unblocker order (a request-bundle top-up). */
+export interface WebUnblockerOrder {
+  uuid: string;
+  product: 'web_unblocker';
+  requests: number;
+  status: string;
+  priceCents: number;
+  currency: string;
+  createdAt?: string;
+  raw?: Record<string, unknown>;
+}
+
+/** Response of `client.webUnblocker.list`. */
+export interface WebUnblockerOverview {
+  access: WebUnblockerAccess | null;
+  subscription: ProxySubscription | null;
+  orders: WebUnblockerOrder[];
+}
+
+/** A Web Unblocker request-bundle rung. */
+export interface WebUnblockerPackage {
+  requests: number;
+  per1kCents: number;
+  totalCents: number;
+  basePer1kCents: number;
+  discountPct: number;
+  recommended?: boolean;
+  currency: string;
+  raw?: Record<string, unknown>;
+}
+
+/** Response of `client.webUnblocker.packages`. */
+export interface WebUnblockerPackagesResponse {
+  packages: WebUnblockerPackage[];
+  currency: string;
+}
+
+/** Response of `client.webUnblocker.quote`. */
+export interface WebUnblockerQuote {
+  product: 'web_unblocker';
+  requests: number;
+  unit: string;
+  priceCents: number;
+  per1kCents: number;
+  currency: string;
+  raw: Record<string, unknown>;
+}
+
+/** Input to `client.webUnblocker.purchase`. */
+export interface WebUnblockerPurchaseRequest {
+  requests: number;
+  subscription?: boolean;
+  /** Optional idempotency key. Sent as the `Idempotency-Key` header. */
+  idempotencyKey?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Emails — rent an inbox address (our catch-all domains or a reseller) and read
+// its mail.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A single received message. `body` may be plain text or HTML. */
+export interface EmailMessage {
+  from?: string;
+  subject?: string;
+  body?: string;
+  receivedAt?: string;
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * A rented email address / order. `get(uuid)` additionally populates
+ * `messages` (and live-syncs reseller inboxes).
+ */
+export interface EmailOrder {
+  uuid: string;
+  address: string;
+  domain: string;
+  site?: string | null;
+  status: string;
+  priceCents: number;
+  currency: string;
+  messageCount: number;
+  expiresAt?: string;
+  createdAt?: string;
+  /** Populated by `get(uuid)`; empty on list rows. */
+  messages: EmailMessage[];
+  raw?: Record<string, unknown>;
+}
+
+/** A rentable email domain. */
+export interface EmailDomain {
+  provider?: string;
+  domain: string;
+  priceCents: number;
+  available: boolean;
+  raw?: Record<string, unknown>;
+}
+
+/** Response of `client.emails.domains`. */
+export interface EmailDomainsResponse {
+  domains: EmailDomain[];
+  currency: string;
+}
+
+/** Response of `client.emails.quote`. */
+export interface EmailQuote {
+  domain: string;
+  provider?: string;
+  priceCents: number;
+  currency: string;
+  raw: Record<string, unknown>;
+}
+
+/** Input to `client.emails.quote`. */
+export interface EmailQuoteRequest {
+  domain: string;
+  site?: string;
+  provider?: string;
+}
+
+/** Input to `client.emails.purchase`. */
+export interface EmailPurchaseRequest {
+  domain: string;
+  site?: string;
+  provider?: string;
+  /** Optional idempotency key. Sent as the `Idempotency-Key` header. */
+  idempotencyKey?: string;
+}

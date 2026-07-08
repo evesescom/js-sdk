@@ -1,7 +1,18 @@
 # @eveses/sdk
 
 Official JavaScript / TypeScript SDK for the [Eveses](https://eveses.com) developer API.
-Activations, wallet, catalog (countries / services / pricing), and webhook signature verification — works on Node 18+ and any runtime that ships `fetch` + `crypto`.
+Activations, wallet, catalog (countries / services / pricing), proxies, web unblocker, emails,
+and webhook signature verification — works on Node 18+ and any runtime that ships `fetch` + `crypto`.
+
+| Namespace | What it does |
+| --- | --- |
+| `client.activations` | Buy numbers, read SMS, cancel / finish orders. |
+| `client.wallet` | Balance snapshot. |
+| `client.catalog` | Countries / services / pricing metadata. |
+| `client.proxies` | Residential (per-GB) & static (per-IP) proxies. |
+| `client.webUnblocker` | Anti-bot scraping endpoint, billed per request. |
+| `client.emails` | Rent an inbox address and read its mail. |
+| `Webhooks` | HMAC signature verification. |
 
 ## Install
 
@@ -78,6 +89,81 @@ const pricing       = await client.catalog.pricing({ mode: 'activation', country
 
 `mode` accepts `'activation' | 'rent'`. For rentals, pass `durationMinutes` to
 `pricing(...)` to filter to a single duration.
+
+## Proxies
+
+Residential proxies are **metered** (billed per GB, with an optional monthly
+subscription). Static proxies are **per-IP** across five families:
+`isp | datacenter | ipv6 | mobile | sneaker`. Money is integer cents; currency is USD.
+
+```ts
+// Overview: residential connection + subscription + order history
+const { residential, subscription, orders } = await client.proxies.list();
+
+// Pricing / catalogue
+const { packages } = await client.proxies.packages();  // residential GB ladder
+const { products } = await client.proxies.catalog();   // static products/plans/locations
+//   a plan's priceCents === null ⇒ price it via quote()
+
+// Quote — residential (per GB) or a static selection
+const gbQuote = await client.proxies.quote({ type: 'residential', gb: 5, subscription: true });
+const ipQuote = await client.proxies.quote({ type: 'isp', productId: 7, planId: 3, locationId: 9, quantity: 2 });
+
+// Buy (idempotencyKey → sent as Idempotency-Key header)
+const resOrder = await client.proxies.purchase({ type: 'residential', gb: 5, idempotencyKey: 'uuid' });
+const ipOrder  = await client.proxies.purchase({ type: 'isp', productId: 7, planId: 3, locationId: 9, quantity: 2 });
+
+// Residential subscription lifecycle
+await client.proxies.cancelSubscription();
+await client.proxies.pauseSubscription();
+await client.proxies.resumeSubscription();
+
+// Per-IP order management (keyed on the order uuid)
+await client.proxies.extend(ipOrder.uuid, { days: 30 });  // re-charges the order price
+await client.proxies.autoRenew(ipOrder.uuid, true);       // toggle auto-renew
+
+// Targeting + usage
+const targeting = await client.proxies.locations({ type: 'residential' }); // { type, geo }
+const usage     = await client.proxies.usage({ from: '2026-06-01', to: '2026-06-30' });
+```
+
+## Web Unblocker
+
+An anti-bot scraping endpoint billed per **successful request**. Separate
+product from proxies; the provider stays invisible behind the white-label host.
+
+```ts
+const { access, subscription, orders } = await client.webUnblocker.list();
+const { packages } = await client.webUnblocker.packages();
+
+const quote = await client.webUnblocker.quote({ requests: 10_000 });
+const order = await client.webUnblocker.purchase({ requests: 10_000, idempotencyKey: 'uuid' });
+
+// Optional monthly subscription
+await client.webUnblocker.cancelSubscription();
+await client.webUnblocker.pauseSubscription();
+await client.webUnblocker.resumeSubscription();
+```
+
+## Emails
+
+Rent an inbox address — on our catch-all domains or a reseller — and read its mail.
+
+```ts
+const addresses = await client.emails.list();
+
+// Rentable domains (pass `site` for reseller providers; catch-all domains ignore it)
+const { domains } = await client.emails.domains({ site: 'shop.com' });
+const quote       = await client.emails.quote({ domain: 'x.io', provider: 'catchall' });
+
+const order = await client.emails.purchase({ domain: 'x.io', idempotencyKey: 'uuid' });
+
+// get(uuid) live-syncs reseller inboxes — it IS the inbox-refresh mechanism, so poll it.
+const inbox = await client.emails.get(order.uuid);
+for (const msg of inbox.messages) console.log(msg.subject, msg.body);
+
+await client.emails.delete(order.uuid);  // soft cancel — stops receiving, no refund
+```
 
 ## Webhook verification
 

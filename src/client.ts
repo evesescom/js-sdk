@@ -10,12 +10,15 @@ import {
 } from './errors';
 import { Activations } from './modules/activations';
 import { Catalog } from './modules/catalog';
+import { Emails } from './modules/emails';
+import { Proxies } from './modules/proxies';
 import { Wallet } from './modules/wallet';
+import { WebUnblocker } from './modules/web-unblocker';
 import { Webhooks } from './modules/webhooks';
 
 const DEFAULT_BASE_URL = 'https://api.eveses.io';
 const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.1.0';
+const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.2.0';
 
 /** Internal request shape used by every module. */
 export interface RequestOptions {
@@ -38,6 +41,9 @@ export class Eveses {
   public readonly activations: Activations;
   public readonly wallet: Wallet;
   public readonly catalog: Catalog;
+  public readonly proxies: Proxies;
+  public readonly webUnblocker: WebUnblocker;
+  public readonly emails: Emails;
   /** Static-like webhook helpers (also exported as `Webhooks` from the package root). */
   public readonly webhooks: typeof Webhooks;
 
@@ -69,6 +75,9 @@ export class Eveses {
     this.activations = new Activations(this);
     this.wallet = new Wallet(this);
     this.catalog = new Catalog(this);
+    this.proxies = new Proxies(this);
+    this.webUnblocker = new WebUnblocker(this);
+    this.emails = new Emails(this);
     this.webhooks = Webhooks;
   }
 

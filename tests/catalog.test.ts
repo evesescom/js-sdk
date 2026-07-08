@@ -7,7 +7,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 
-import { Eveses } from '../src/client';
+import { Eveses } from '../dist/client.js';
 
 interface FakeCall {
   url: string;
