@@ -117,6 +117,7 @@ const ipOrder  = await client.proxies.purchase({ type: 'isp', productId: 7, plan
 await client.proxies.cancelSubscription();
 await client.proxies.pauseSubscription();
 await client.proxies.resumeSubscription();
+await client.proxies.resetSessions(); // rotate residential sticky-session IPs
 
 // Per-IP order management (keyed on the order uuid)
 await client.proxies.extend(ipOrder.uuid, { days: 30 });  // re-charges the order price

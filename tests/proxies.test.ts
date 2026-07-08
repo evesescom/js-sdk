@@ -233,6 +233,14 @@ test('proxies.extend posts { days } to /{uuid}/extend', async () => {
   assert.equal(order.uuid, 'ord-3');
 });
 
+test('proxies.resetSessions posts to /sessions/reset', async () => {
+  const { fn, calls } = makeFetch([{ status: 200, body: { reset: true } }]);
+  const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
+  await client.proxies.resetSessions();
+  assert.equal(calls[0].url, 'https://x.test/api/account/proxies/sessions/reset');
+  assert.equal(calls[0].init.method, 'POST');
+});
+
 test('proxies.cancelSubscription posts to /subscription/cancel', async () => {
   const { fn, calls } = makeFetch([
     { status: 200, body: { status: 'cancelled', gb: 10, discount_pct: 15, next_renews_at: null, renew_failures: 0 } },

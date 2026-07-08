@@ -150,6 +150,14 @@ export class Proxies {
     return this.subscriptionAction('resume');
   }
 
+  /**
+   * Reset the user's residential sticky sessions; the next request rotates to
+   * fresh IPs. Requires a provisioned residential sub-user.
+   */
+  async resetSessions(): Promise<void> {
+    await this.client.request<unknown>({ method: 'POST', path: `${BASE}/sessions/reset` });
+  }
+
   private async subscriptionAction(action: 'cancel' | 'pause' | 'resume'): Promise<ProxySubscription> {
     const d = unwrap(
       await this.client.request<unknown>({ method: 'POST', path: `${BASE}/subscription/${action}` }),
