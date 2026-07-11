@@ -1,7 +1,7 @@
 {
   "name": "@eveses/sdk",
-  "version": "0.2.0",
-  "description": "Official Eveses SDK — activations, wallet, webhooks.",
+  "version": "0.3.0",
+  "description": "Official Eveses SDK — activations, wallet, catalog, proxy, web-unblocker, emails, trial, captcha, fingerprints, webhooks.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "commonjs",
@@ -12,13 +12,17 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "pretest": "tsc -p tsconfig.json",
-    "test": "node --test \"tests/**/*.test.ts\""
+    "test": "node --test tests/"
   },
   "keywords": [
     "eveses",
     "sms",
     "activations",
+    "proxy",
+    "web-unblocker",
+    "emails",
+    "captcha",
+    "fingerprints",
     "sdk",
     "api"
   ],

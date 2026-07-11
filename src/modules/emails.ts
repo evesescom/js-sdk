@@ -1,243 +1,155 @@
 import type { Eveses } from '../client';
 import type {
-  EmailDomain,
-  EmailDomainsResponse,
-  EmailMarkReadResult,
   EmailMessage,
-  EmailMessagesPage,
+  EmailMessageListOptions,
   EmailOrder,
   EmailPurchaseRequest,
-  EmailQuote,
   EmailQuoteRequest,
+  Paginated,
 } from '../types';
 
-const BASE = '/api/account/emails';
-
 /**
- * Emails namespace — rent an inbox address (our catch-all domains or a
- * reseller) and read its mail. The provider stays invisible.
- *
- * Hits `/api/account/emails/*`. Responses are flat JSON; the SDK unwraps
- * defensively and maps snake_case → camelCase.
+ * Emails namespace — buy and manage temporary/private email inboxes. Hits the
+ * account-scoped endpoints `/api/account/emails/*`.
  */
 export class Emails {
   constructor(private readonly client: Eveses) {}
 
   /**
-   * The user's rented addresses (list rows carry no messages). Pass
-   * `includeReleased` to also return released/cancelled addresses (sent as
-   * `?include_released=1`; omitted otherwise).
+   * List available sending domains, optionally filtered by site.
+   * Returns the raw domains payload.
    */
-  async list(includeReleased = false): Promise<EmailOrder[]> {
-    const d = unwrap(
-      await this.client.request<unknown>({
-        method: 'GET',
-        path: BASE,
-        query: includeReleased ? { include_released: 1 } : undefined,
-      }),
-    );
-    return mapArray(d.emails, mapOrder);
+  async domains(site?: string): Promise<Record<string, unknown>> {
+    return this.client.request({
+      method: 'GET',
+      path: '/api/account/emails/domains',
+      query: { site },
+    });
   }
 
-  /**
-   * Rentable domains (our price). Pass `site` for reseller providers; our
-   * own catch-all domains ignore it.
-   */
-  async domains(opts: { site?: string } = {}): Promise<EmailDomainsResponse> {
-    const d = unwrap(
-      await this.client.request<unknown>({
-        method: 'GET',
-        path: `${BASE}/domains`,
-        query: { site: opts.site },
-      }),
-    );
-    return {
-      domains: mapArray(d.domains, mapDomain),
-      currency: str(d.currency) ?? 'USD',
-    };
+  /** Estimate an inbox purchase before buying. */
+  async quote(req: EmailQuoteRequest): Promise<Record<string, unknown>> {
+    return this.client.request({
+      method: 'GET',
+      path: '/api/account/emails/quote',
+      query: { domain: req.domain, site: req.site, provider: req.provider },
+    });
   }
 
-  /** Price a concrete pick before renting. */
-  async quote(req: EmailQuoteRequest): Promise<EmailQuote> {
-    const d = unwrap(
-      await this.client.request<unknown>({
-        method: 'GET',
-        path: `${BASE}/quote`,
-        query: { domain: req.domain, site: req.site, provider: req.provider },
-      }),
-    );
-    return mapQuote(d);
-  }
-
-  /**
-   * Rent an address. Pass `idempotencyKey` to make the request safe to retry —
-   * sent as the `Idempotency-Key` header.
-   */
-  async purchase(req: EmailPurchaseRequest): Promise<EmailOrder> {
+  /** Buy an email inbox. Returns the created order. */
+  async purchase(req: EmailPurchaseRequest, idempotencyKey?: string): Promise<EmailOrder> {
     const headers: Record<string, string> = {};
-    if (req.idempotencyKey) headers['Idempotency-Key'] = req.idempotencyKey;
+    const key = idempotencyKey ?? req.idempotencyKey;
+    if (key) headers['Idempotency-Key'] = key;
 
     const body: Record<string, unknown> = { domain: req.domain };
     if (req.site !== undefined) body.site = req.site;
     if (req.provider !== undefined) body.provider = req.provider;
 
-    const d = unwrap(
-      await this.client.request<unknown>({ method: 'POST', path: `${BASE}/purchase`, body, headers }),
-    );
-    return mapOrder(d);
+    const res = await this.client.request<Record<string, unknown>>({
+      method: 'POST',
+      path: '/api/account/emails/purchase',
+      body,
+      headers,
+    });
+    return mapOrder(res);
   }
 
   /**
-   * Fetch one address + its received messages. This call also live-syncs
-   * reseller inboxes upstream — it is the inbox-refresh mechanism, so poll it.
+   * List the user's email inboxes.
+   * Pass `includeReleased: true` to include already-released inboxes.
    */
+  async list(includeReleased?: boolean): Promise<EmailOrder[]> {
+    const query: Record<string, string | number | boolean | undefined> = {};
+    if (includeReleased) query.include_released = 1;
+
+    const res = await this.client.request<unknown[]>({
+      method: 'GET',
+      path: '/api/account/emails',
+      query,
+    });
+    return Array.isArray(res) ? res.map((r) => mapOrder(r as Record<string, unknown>)) : [];
+  }
+
+  /** Get a single inbox by UUID. */
   async get(uuid: string): Promise<EmailOrder> {
-    const d = unwrap(
-      await this.client.request<unknown>({
-        method: 'GET',
-        path: `${BASE}/${encodeURIComponent(uuid)}`,
-      }),
-    );
-    return mapOrder(d);
+    const res = await this.client.request<Record<string, unknown>>({
+      method: 'GET',
+      path: `/api/account/emails/${encodeURIComponent(uuid)}`,
+    });
+    return mapOrder(res);
   }
 
-  /**
-   * Paginated message feed for one address. `perPage` maps to the `per_page`
-   * query param. Like `get`, this also live-syncs reseller inboxes upstream.
-   */
-  async messages(uuid: string, page = 1, perPage = 20): Promise<EmailMessagesPage> {
-    const d = unwrap(
-      await this.client.request<unknown>({
-        method: 'GET',
-        path: `${BASE}/${encodeURIComponent(uuid)}/messages`,
-        query: { page, per_page: perPage },
-      }),
-    );
-    return mapMessagesPage(d);
+  /** Paginated list of messages received in an inbox. */
+  async messages(uuid: string, opts: EmailMessageListOptions = {}): Promise<Paginated<EmailMessage>> {
+    const res = await this.client.request<Record<string, unknown>>({
+      method: 'GET',
+      path: `/api/account/emails/${encodeURIComponent(uuid)}/messages`,
+      query: { page: opts.page, per_page: opts.perPage },
+    });
+    const items = Array.isArray(res.data)
+      ? (res.data as Record<string, unknown>[]).map(mapMessage)
+      : [];
+    return {
+      items,
+      currentPage: typeof res.current_page === 'number' ? res.current_page : 1,
+      perPage: typeof res.per_page === 'number' ? res.per_page : items.length,
+      total: typeof res.total === 'number' ? res.total : items.length,
+    };
   }
 
-  /** Mark a single message read. */
-  async markRead(uuid: string, messageId: string): Promise<EmailMarkReadResult> {
-    const d = unwrap(
-      await this.client.request<unknown>({
-        method: 'POST',
-        path: `${BASE}/${encodeURIComponent(uuid)}/messages/${encodeURIComponent(messageId)}/read`,
-      }),
-    );
-    return mapMarkRead(d);
+  /** Mark a specific message in an inbox as read. */
+  async markRead(uuid: string, messageId: number): Promise<Record<string, unknown>> {
+    return this.client.request({
+      method: 'POST',
+      path: `/api/account/emails/${encodeURIComponent(uuid)}/messages/${encodeURIComponent(String(messageId))}/read`,
+    });
   }
 
-  /** Release an address (soft cancel — stops receiving; no refund). */
-  async delete(uuid: string): Promise<EmailOrder> {
-    const d = unwrap(
-      await this.client.request<unknown>({
-        method: 'DELETE',
-        path: `${BASE}/${encodeURIComponent(uuid)}`,
-      }),
-    );
-    return mapOrder(d);
+  /** Release (delete) an inbox early. */
+  async release(uuid: string): Promise<Record<string, unknown>> {
+    return this.client.request({
+      method: 'DELETE',
+      path: `/api/account/emails/${encodeURIComponent(uuid)}`,
+    });
   }
 }
 
-// ── mappers ─────────────────────────────────────────────────────────────────
-
-function mapOrder(value: unknown): EmailOrder {
-  const r = obj(value);
+function mapOrder(r: Record<string, unknown>): EmailOrder {
   return {
-    uuid: str(r.uuid) ?? '',
-    address: str(r.address) ?? '',
-    domain: str(r.domain) ?? '',
-    site: r.site === null ? null : str(r.site),
-    status: str(r.status) ?? '',
-    priceCents: num(r.price_cents, 0),
-    currency: str(r.currency) ?? 'USD',
-    messageCount: num(r.message_count, 0),
-    expiresAt: str(r.expires_at),
-    createdAt: str(r.created_at),
-    messages: mapArray(r.messages, mapMessage),
+    uuid: typeof r.uuid === 'string' ? r.uuid : '',
+    domain: typeof r.domain === 'string' ? r.domain : '',
+    address: typeof r.address === 'string' ? r.address : '',
+    provider: typeof r.provider === 'string' ? r.provider : undefined,
+    site: typeof r.site === 'string' ? r.site : undefined,
+    status: typeof r.status === 'string' ? r.status : '',
+    priceCents: typeof r.price_cents === 'number' ? r.price_cents : 0,
+    currency: typeof r.currency === 'string' ? r.currency : 'USD',
+    expiresAt: typeof r.expires_at === 'string' ? r.expires_at : undefined,
+    createdAt: typeof r.created_at === 'string' ? r.created_at : undefined,
+    released: r.released === true,
     raw: r,
   };
 }
 
-function mapMessage(value: unknown): EmailMessage {
-  const r = obj(value);
+function mapMessage(r: Record<string, unknown>): EmailMessage {
   return {
-    id: str(r.id),
-    from: str(r.from),
-    subject: str(r.subject),
-    body: str(r.body),
-    receivedAt: str(r.received_at),
-    readAt: r.read_at === null ? null : str(r.read_at),
-    isRead: typeof r.is_read === 'boolean' ? r.is_read : undefined,
-    raw: r,
-  };
-}
-
-function mapMessagesPage(value: unknown): EmailMessagesPage {
-  const r = obj(value);
-  return {
-    messages: mapArray(r.messages, mapMessage),
-    page: num(r.page, 1),
-    perPage: num(r.per_page, 0),
-    total: num(r.total, 0),
-    hasMore: r.has_more === true,
-    raw: r,
-  };
-}
-
-function mapMarkRead(value: unknown): EmailMarkReadResult {
-  const r = obj(value);
-  return {
-    id: str(r.id) ?? '',
+    id: typeof r.id === 'number' ? r.id : 0,
+    subject: typeof r.subject === 'string' ? r.subject : undefined,
+    from: typeof r.from === 'string' ? r.from : undefined,
+    body: typeof r.body === 'string' ? r.body : undefined,
+    bodyHtml: typeof r.body_html === 'string' ? r.body_html : undefined,
     read: r.read === true,
+    receivedAt: typeof r.received_at === 'string' ? r.received_at : undefined,
     raw: r,
   };
 }
 
-function mapDomain(value: unknown): EmailDomain {
-  const r = obj(value);
-  return {
-    provider: str(r.provider),
-    domain: str(r.domain) ?? '',
-    priceCents: num(r.price_cents, 0),
-    available: r.available === true,
-    raw: r,
-  };
-}
-
-function mapQuote(value: unknown): EmailQuote {
-  const r = obj(value);
-  return {
-    domain: str(r.domain) ?? '',
-    provider: str(r.provider),
-    priceCents: num(r.price_cents, 0),
-    currency: str(r.currency) ?? 'USD',
-    raw: r,
-  };
-}
-
-// ── shared response helpers (flat-or-enveloped) ──────────────────────────────
-
-function unwrap(value: unknown): Record<string, unknown> {
-  const r = obj(value);
-  if ('data' in r && r.data && typeof r.data === 'object' && !Array.isArray(r.data)) {
-    return r.data as Record<string, unknown>;
-  }
-  return r;
-}
-
-function obj(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
-
-function str(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-function num(value: unknown, fallback: number): number {
-  return typeof value === 'number' ? value : fallback;
-}
-
-function mapArray<T>(value: unknown, fn: (v: unknown) => T): T[] {
-  return Array.isArray(value) ? value.map(fn) : [];
-}
+// Re-export the input types under the module for ergonomic imports.
+export type {
+  EmailMessage,
+  EmailMessageListOptions,
+  EmailOrder,
+  EmailPurchaseRequest,
+  EmailQuoteRequest,
+};

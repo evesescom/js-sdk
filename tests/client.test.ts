@@ -13,9 +13,9 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { createHmac } from 'node:crypto';
 
-import { Eveses } from '../dist/client.js';
-import { Webhooks } from '../dist/modules/webhooks.js';
-import { EvesesAuthError, EvesesValidationError } from '../dist/errors.js';
+import { Eveses } from '../src/client';
+import { Webhooks } from '../src/modules/webhooks';
+import { EvesesAuthError, EvesesValidationError } from '../src/errors';
 
 interface FakeCall {
   url: string;

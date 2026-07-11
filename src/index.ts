@@ -3,11 +3,14 @@
  */
 export { Eveses } from './client';
 export { Activations } from './modules/activations';
+export { Captcha } from './modules/captcha';
 export { Catalog } from './modules/catalog';
 export { Emails } from './modules/emails';
-export { Proxies } from './modules/proxies';
+export { Fingerprints } from './modules/fingerprints';
+export { Proxy } from './modules/proxy';
+export { Trial } from './modules/trial';
 export { Wallet } from './modules/wallet';
-export { WebUnblocker } from './modules/web-unblocker';
+export { WebUnblocker } from './modules/webUnblocker';
 export { Webhooks } from './modules/webhooks';
 
 export {
@@ -22,53 +25,41 @@ export {
 
 export type {
   ActivationCreateRequest,
+  CaptchaSolution,
+  CaptchaSolveOptions,
+  CaptchaStatus,
   CatalogCountriesResponse,
   CatalogPricingDuration,
   CatalogPricingResponse,
   CatalogServicesResponse,
   CatalogServiceWithDurations,
+  EmailMessage,
+  EmailMessageListOptions,
+  EmailOrder,
+  EmailPurchaseRequest,
+  EmailQuoteRequest,
   EvesesOptions,
+  Fingerprint,
+  FingerprintParams,
   Order,
   OrderMode,
   OrderSms,
   OrderSmsBundle,
   OrderStatus,
   Paginated,
-  WalletBalance,
-  // Proxies
-  ProxyType,
-  ProxyStaticType,
-  ResidentialAccess,
-  ProxySubscription,
+  ProxyList,
   ProxyOrder,
-  ProxyOverview,
-  ResidentialPackage,
-  ResidentialPackagesResponse,
-  StaticPlan,
-  StaticLocation,
-  StaticProduct,
-  StaticCatalogResponse,
-  ProxyQuote,
-  ProxyQuoteRequest,
-  ProxyResidentialQuoteRequest,
-  ProxyStaticQuoteRequest,
   ProxyPurchaseRequest,
-  ProxyResidentialPurchaseRequest,
-  ProxyStaticPurchaseRequest,
-  // Web Unblocker
+  ProxyQuoteRequest,
+  ProxyStaticSelection,
+  ProxySubscription,
+  ProxyType,
+  TrialServiceStatus,
+  TrialStatus,
+  WalletBalance,
   WebUnblockerAccess,
   WebUnblockerOrder,
-  WebUnblockerOverview,
-  WebUnblockerPackage,
-  WebUnblockerPackagesResponse,
-  WebUnblockerQuote,
   WebUnblockerPurchaseRequest,
-  // Emails
-  EmailMessage,
-  EmailOrder,
-  EmailDomain,
-  EmailDomainsResponse,
-  EmailQuote,
-  EmailQuoteRequest,
-  EmailPurchaseRequest,
+  WebUnblockerQuoteRequest,
+  WebUnblockerSubscription,
 } from './types';

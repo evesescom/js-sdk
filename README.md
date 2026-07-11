@@ -1,18 +1,10 @@
 # @eveses/sdk
 
 Official JavaScript / TypeScript SDK for the [Eveses](https://eveses.com) developer API.
-Activations, wallet, catalog (countries / services / pricing), proxies, web unblocker, emails,
-and webhook signature verification — works on Node 18+ and any runtime that ships `fetch` + `crypto`.
-
-| Namespace | What it does |
-| --- | --- |
-| `client.activations` | Buy numbers, read SMS, cancel / finish orders. |
-| `client.wallet` | Balance snapshot. |
-| `client.catalog` | Countries / services / pricing metadata. |
-| `client.proxies` | Residential (per-GB) & static (per-IP) proxies. |
-| `client.webUnblocker` | Anti-bot scraping endpoint, billed per request. |
-| `client.emails` | Rent an inbox address and read its mail. |
-| `Webhooks` | HMAC signature verification. |
+SMS activations & rentals, wallet, catalog (countries / services / pricing), proxies,
+web-unblocker, temporary email inboxes, product trials, captcha solving, browser
+fingerprints, and webhook signature verification — works on Node 18+ and any runtime
+that ships `fetch` + `crypto`.
 
 ## Install
 
@@ -31,7 +23,7 @@ import { Eveses } from '@eveses/sdk';
 
 const client = new Eveses({
   apiKey: process.env.EVESES_API_KEY!,
-  // baseUrl defaults to https://api.eveses.com
+  // baseUrl defaults to https://api.eveses.io
 });
 
 const order = await client.activations.create({
@@ -49,6 +41,23 @@ console.log(`${wallet.availableBalance / 100} ${wallet.currency}`);
 
 Every request sends `Authorization: Bearer <apiKey>`. Generate an API key from your dashboard
 (`Settings → API keys`). The token is a Sanctum personal-access token with `kind=api_key`.
+
+## Modules
+
+The client exposes one namespace per product family:
+
+| Namespace | What it does |
+| --- | --- |
+| `client.activations` | Create / read / cancel / finish SMS activations & rentals, pull SMS. |
+| `client.wallet` | Read the wallet balance (total / held / available). |
+| `client.catalog` | Read-only countries / services / pricing metadata. |
+| `client.proxy` | Buy & manage residential (per-GB) and static (per-IP) proxies. |
+| `client.webUnblocker` | Buy & manage request-credit bundles for the unblocking proxy. |
+| `client.emails` | Buy & manage temporary email inboxes and read their messages. |
+| `client.trial` | Check trial status and subscribe to product trials. |
+| `client.captcha` | Solve captchas (pay-per-use, count-on-success). |
+| `client.fingerprints` | Generate / fetch browser fingerprints (pay-per-use). |
+| `client.webhooks` | Static HMAC-SHA256 signature verification (also `Webhooks` at the root). |
 
 ## Activations
 
@@ -90,92 +99,128 @@ const pricing       = await client.catalog.pricing({ mode: 'activation', country
 `mode` accepts `'activation' | 'rent'`. For rentals, pass `durationMinutes` to
 `pricing(...)` to filter to a single duration.
 
-## Proxies
+## Proxy
 
-Residential proxies are **metered** (billed per GB, with an optional monthly
-subscription). Static proxies are **per-IP** across five families:
-`isp | datacenter | ipv6 | mobile | sneaker`. Money is integer cents; currency is USD.
+Buy and manage residential (metered, per-GB) and static (per-IP: ISP / datacenter /
+IPv6 / sneaker / mobile) proxies. The upstream provider stays invisible — connection
+details come back under the white-label host.
 
 ```ts
-// Overview: residential connection + subscription + order history
-const { residential, subscription, orders } = await client.proxies.list();
+// Browse
+const packages  = await client.proxy.packages();                    // residential GB ladder
+const endpoints = await client.proxy.endpoints();                   // white-label host + ports
+const catalog   = await client.proxy.catalog();                     // static (per-IP) products
+const locations = await client.proxy.locations('residential');      // targeting options
 
-// Pricing / catalogue
-const { packages } = await client.proxies.packages();  // residential GB ladder
-const { products } = await client.proxies.catalog();   // static products/plans/locations
-//   a plan's priceCents === null ⇒ price it via quote()
+// Quote → buy (residential, per-GB)
+await client.proxy.quote({ type: 'residential', gb: 5 });
+const resi = await client.proxy.purchase({
+  type: 'residential',
+  gb: 5,
+  subscription: true,                 // start a monthly auto-renewing plan
+  idempotencyKey: crypto.randomUUID(),
+});
 
-// Connection endpoints — selectable gateway regions, ports, protocols
-const { regions, ports, protocols } = await client.proxies.endpoints();
+// Quote → buy (static, per-IP)
+const ip = await client.proxy.purchase({
+  type: 'isp',
+  selection: { productId: 1, planId: 2, locationId: 42, quantity: 3 },
+});
 
-// Quote — residential (per GB) or a static selection
-const gbQuote = await client.proxies.quote({ type: 'residential', gb: 5, subscription: true });
-const ipQuote = await client.proxies.quote({ type: 'isp', productId: 7, planId: 3, locationId: 9, quantity: 2 });
-
-// Buy (idempotencyKey → sent as Idempotency-Key header)
-const resOrder = await client.proxies.purchase({ type: 'residential', gb: 5, idempotencyKey: 'uuid' });
-const ipOrder  = await client.proxies.purchase({ type: 'isp', productId: 7, planId: 3, locationId: 9, quantity: 2 });
+// Manage
+const mine = await client.proxy.list();                 // { residential, subscription, orders }
+await client.proxy.extend(ip.uuid, 30);                 // re-charge a per-IP order for N days
+await client.proxy.autoRenew(ip.uuid, true);            // toggle auto-extend
+await client.proxy.resetSessions();                     // rotate residential sticky sessions
+await client.proxy.usage({ from: '2026-06-01', to: '2026-06-30' });
 
 // Residential subscription lifecycle
-await client.proxies.cancelSubscription();
-await client.proxies.pauseSubscription();
-await client.proxies.resumeSubscription();
-await client.proxies.resetSessions(); // rotate residential sticky-session IPs
-
-// Per-IP order management (keyed on the order uuid)
-await client.proxies.extend(ipOrder.uuid, { days: 30 });  // re-charges the order price
-await client.proxies.autoRenew(ipOrder.uuid, true);       // toggle auto-renew
-
-// Targeting + usage
-const targeting = await client.proxies.locations({ type: 'residential' }); // { type, geo }
-const usage     = await client.proxies.usage({ from: '2026-06-01', to: '2026-06-30' });
+await client.proxy.subscriptionPause();
+await client.proxy.subscriptionResume();
+await client.proxy.subscriptionCancel();
 ```
 
 ## Web Unblocker
 
-An anti-bot scraping endpoint billed per **successful request**. Separate
-product from proxies; the provider stays invisible behind the white-label host.
+Buy and manage request-credit bundles (metered, per-request) for the headless-browser
+unblocking proxy.
 
 ```ts
-const { access, subscription, orders } = await client.webUnblocker.list();
-const { packages } = await client.webUnblocker.packages();
+const packages = await client.webUnblocker.packages();
+await client.webUnblocker.quote(10_000, /* subscription */ true);
 
-const quote = await client.webUnblocker.quote({ requests: 10_000 });
-const order = await client.webUnblocker.purchase({ requests: 10_000, idempotencyKey: 'uuid' });
+const order = await client.webUnblocker.purchase(
+  { requests: 10_000, subscription: true },
+  crypto.randomUUID(),                 // optional idempotency key
+);
 
-// Optional monthly subscription
-await client.webUnblocker.cancelSubscription();
-await client.webUnblocker.pauseSubscription();
-await client.webUnblocker.resumeSubscription();
+const { connection, subscription } = await client.webUnblocker.access();
+
+await client.webUnblocker.subscriptionPause();
+await client.webUnblocker.subscriptionResume();
+await client.webUnblocker.subscriptionCancel();
 ```
 
 ## Emails
 
-Rent an inbox address — on our catch-all domains or a reseller — and read its mail.
+Buy and manage temporary / private email inboxes, then read their messages.
 
 ```ts
-const addresses = await client.emails.list();
-const withReleased = await client.emails.list(true); // include released/cancelled addresses
+const domains = await client.emails.domains();          // available sending domains
+await client.emails.quote({ domain: 'example.com' });
 
-// Rentable domains (pass `site` for reseller providers; catch-all domains ignore it)
-const { domains } = await client.emails.domains({ site: 'shop.com' });
-const quote       = await client.emails.quote({ domain: 'x.io', provider: 'catchall' });
+const inbox = await client.emails.purchase(
+  { domain: 'example.com' },
+  crypto.randomUUID(),                 // optional idempotency key
+);
+console.log(inbox.address);
 
-const order = await client.emails.purchase({ domain: 'x.io', idempotencyKey: 'uuid' });
+const inboxes = await client.emails.list();             // include released: list(true)
+const one     = await client.emails.get(inbox.uuid);
 
-// get(uuid) live-syncs reseller inboxes — it IS the inbox-refresh mechanism, so poll it.
-const inbox = await client.emails.get(order.uuid);
-for (const msg of inbox.messages) console.log(msg.subject, msg.body);
+const page = await client.emails.messages(inbox.uuid, { page: 1, perPage: 20 });
+for (const msg of page.items) console.log(msg.from, msg.subject);
 
-// Paginated message feed (also live-syncs). perPage → per_page query param.
-const feed = await client.emails.messages(order.uuid, 1, 20);
-for (const msg of feed.messages) console.log(msg.id, msg.subject, msg.isRead);
-if (feed.hasMore) { /* fetch page 2 … */ }
+await client.emails.markRead(inbox.uuid, page.items[0].id);
+await client.emails.release(inbox.uuid);                // delete the inbox early
+```
 
-// Mark a single message read
-await client.emails.markRead(order.uuid, feed.messages[0].id!);
+## Trial
 
-await client.emails.delete(order.uuid);  // soft cancel — stops receiving, no refund
+Check active trial state across products and subscribe to product trials.
+
+```ts
+const status = await client.trial.status();
+for (const s of status.services) console.log(s.service, s.active, s.expiresAt);
+
+await client.trial.subscribe(['web-unblocker', 'proxies']);
+```
+
+## Captcha
+
+Solve captchas, billed pay-per-use from the wallet (count-on-success). `solve` is
+blocking: it submits the task and polls until the task resolves or `timeoutSec` elapses,
+throwing `EvesesError` on failure/timeout.
+
+```ts
+const result = await client.captcha.solve(
+  'recaptcha_v2',
+  { websiteURL: 'https://example.com', websiteKey: '6Lc…' },
+  { timeoutSec: 120, idempotencyKey: crypto.randomUUID() },
+);
+console.log(result.solution, result.priceMicroUsd);
+```
+
+## Fingerprints
+
+Generate browser fingerprints, billed pay-per-use from the wallet (count-on-success).
+Unlike captcha solving this is synchronous — one request returns a complete fingerprint.
+
+```ts
+const fp = await client.fingerprints.generate({ tags: 'Windows', country: 'us' });
+console.log(fp.fingerprint, fp.priceMicroUsd);
+
+const random = await client.fingerprints.random({ min_browser_version: 130 });
 ```
 
 ## Webhook verification
@@ -252,12 +297,16 @@ account-scoped routes, which is where v1 reads & writes terminate today. When
 v1 ships its own activations / wallet routes, you can override the base URL
 without changing call sites; the response shapes are identical.
 
+The newer product families (proxy, web-unblocker, emails, trial, captcha,
+fingerprints) are served exclusively from the account-scoped `/api/account/*`
+namespace and are exposed here 1:1.
+
 ## Configuration
 
 ```ts
 new Eveses({
   apiKey: '…',
-  baseUrl: 'https://api.eveses.com', // override per environment
+  baseUrl: 'https://api.eveses.io', // override per environment
   timeoutMs: 30_000,
   fetch: globalThis.fetch,           // inject for tests
   defaultHeaders: { 'X-Trace-Id': 't1' },
@@ -272,6 +321,31 @@ npm install
 npm run build
 node --test tests/
 ```
+
+## Changelog
+
+### 0.3.0
+
+- **New `proxy` module** — residential (per-GB) and static (per-IP: ISP / datacenter /
+  IPv6 / sneaker / mobile) proxies: `packages`, `endpoints`, `catalog`, `locations`,
+  `quote`, `purchase`, `list`, `extend`, `autoRenew`, `resetSessions`, `usage`, `trial`,
+  and residential `subscriptionPause` / `subscriptionResume` / `subscriptionCancel`.
+- **New `webUnblocker` module** — request-credit bundles for the unblocking proxy:
+  `packages`, `quote`, `purchase`, `trial`, `access`, and subscription pause/resume/cancel.
+- **New `emails` module** — temporary email inboxes: `domains`, `quote`, `purchase`,
+  `list`, `get`, `messages` (paginated), `markRead`, `release`.
+- **New `trial` module** — `status` and `subscribe` for product trials.
+- **New `captcha` module** — blocking `solve` (submit + poll, count-on-success billing).
+- **New `fingerprints` module** — synchronous `generate` and `random` browser fingerprints.
+- Module reorg: `proxies` → `proxy`, `web-unblocker` → `webUnblocker`.
+- Default `userAgent` bumped to `@eveses/sdk-js/0.3.0`.
+
+### 0.2.0
+
+- Added the `catalog` module (`countries` / `services` / `pricing`) over the
+  `/api/v1/numbers/*` routes.
+- Wallet balance and activation lifecycle (`create` / `get` / `sms` / `cancel` / `finish`).
+- Static `Webhooks.verify` HMAC-SHA256 signature helper.
 
 ## License
 
