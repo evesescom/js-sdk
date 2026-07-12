@@ -10,19 +10,19 @@ import type {
 
 /**
  * Emails namespace — buy and manage temporary/private email inboxes. Hits the
- * account-scoped endpoints `/api/account/emails/*`.
+ * versioned endpoints `/api/v1/emails/*`.
  */
 export class Emails {
   constructor(private readonly client: Eveses) {}
 
   /**
-   * List available sending domains, optionally filtered by site.
-   * Returns the raw domains payload.
+   * Price list, including the available sending domains (under the `domains`
+   * key), optionally filtered by site. Returns the raw pricing payload.
    */
-  async domains(site?: string): Promise<Record<string, unknown>> {
+  async pricing(site?: string): Promise<Record<string, unknown>> {
     return this.client.request({
       method: 'GET',
-      path: '/api/account/emails/domains',
+      path: '/api/v1/emails/pricing',
       query: { site },
     });
   }
@@ -31,7 +31,7 @@ export class Emails {
   async quote(req: EmailQuoteRequest): Promise<Record<string, unknown>> {
     return this.client.request({
       method: 'GET',
-      path: '/api/account/emails/quote',
+      path: '/api/v1/emails/quote',
       query: { domain: req.domain, site: req.site, provider: req.provider },
     });
   }
@@ -48,7 +48,7 @@ export class Emails {
 
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: '/api/account/emails/purchase',
+      path: '/api/v1/emails/orders',
       body,
       headers,
     });
@@ -65,26 +65,26 @@ export class Emails {
 
     const res = await this.client.request<unknown[]>({
       method: 'GET',
-      path: '/api/account/emails',
+      path: '/api/v1/emails/orders',
       query,
     });
     return Array.isArray(res) ? res.map((r) => mapOrder(r as Record<string, unknown>)) : [];
   }
 
-  /** Get a single inbox by UUID. */
-  async get(uuid: string): Promise<EmailOrder> {
+  /** Get a single inbox by email address. */
+  async get(email: string): Promise<EmailOrder> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'GET',
-      path: `/api/account/emails/${encodeURIComponent(uuid)}`,
+      path: `/api/v1/emails/${encodeURIComponent(email)}`,
     });
     return mapOrder(res);
   }
 
   /** Paginated list of messages received in an inbox. */
-  async messages(uuid: string, opts: EmailMessageListOptions = {}): Promise<Paginated<EmailMessage>> {
+  async messages(email: string, opts: EmailMessageListOptions = {}): Promise<Paginated<EmailMessage>> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'GET',
-      path: `/api/account/emails/${encodeURIComponent(uuid)}/messages`,
+      path: `/api/v1/emails/${encodeURIComponent(email)}/messages`,
       query: { page: opts.page, per_page: opts.perPage },
     });
     const items = Array.isArray(res.data)
@@ -99,18 +99,18 @@ export class Emails {
   }
 
   /** Mark a specific message in an inbox as read. */
-  async markRead(uuid: string, messageId: number): Promise<Record<string, unknown>> {
+  async markRead(email: string, messageId: number): Promise<Record<string, unknown>> {
     return this.client.request({
       method: 'POST',
-      path: `/api/account/emails/${encodeURIComponent(uuid)}/messages/${encodeURIComponent(String(messageId))}/read`,
+      path: `/api/v1/emails/${encodeURIComponent(email)}/messages/${encodeURIComponent(String(messageId))}/read`,
     });
   }
 
   /** Release (delete) an inbox early. */
-  async release(uuid: string): Promise<Record<string, unknown>> {
+  async release(email: string): Promise<Record<string, unknown>> {
     return this.client.request({
       method: 'DELETE',
-      path: `/api/account/emails/${encodeURIComponent(uuid)}`,
+      path: `/api/v1/emails/${encodeURIComponent(email)}`,
     });
   }
 }

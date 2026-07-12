@@ -9,15 +9,15 @@ import type {
 
 /**
  * Web Unblocker namespace — buy and manage request-credit bundles (metered,
- * per-request) for the headless-browser unblocking proxy. Hits the
- * account-scoped endpoints `/api/account/web-unblocker/*`.
+ * per-request) for the headless-browser unblocking proxy. Hits the versioned
+ * endpoints `/api/v1/webunblocker/*`.
  */
 export class WebUnblocker {
   constructor(private readonly client: Eveses) {}
 
   /** Available request-bundle packages (volume tiers + discount). */
-  async packages(): Promise<Record<string, unknown>> {
-    return this.client.request({ method: 'GET', path: '/api/account/web-unblocker/packages' });
+  async pricing(): Promise<Record<string, unknown>> {
+    return this.client.request({ method: 'GET', path: '/api/v1/webunblocker/pricing' });
   }
 
   /**
@@ -29,7 +29,7 @@ export class WebUnblocker {
     if (subscription) query.subscription = 1;
     return this.client.request({
       method: 'GET',
-      path: '/api/account/web-unblocker/quote',
+      path: '/api/v1/webunblocker/quote',
       query,
     });
   }
@@ -45,7 +45,7 @@ export class WebUnblocker {
 
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: '/api/account/web-unblocker/purchase',
+      path: '/api/v1/webunblocker/orders',
       body,
       headers,
     });
@@ -54,14 +54,14 @@ export class WebUnblocker {
 
   /** Activate the free trial for Web Unblocker (one-shot per account). */
   async trial(): Promise<Record<string, unknown>> {
-    return this.client.request({ method: 'POST', path: '/api/account/web-unblocker/trial' });
+    return this.client.request({ method: 'POST', path: '/api/v1/webunblocker/trial' });
   }
 
-  /** The user's web-unblocker connection credentials and subscription block. */
-  async access(): Promise<WebUnblockerAccess> {
+  /** The user's web-unblocker orders, connection credentials, and subscription block. */
+  async list(): Promise<WebUnblockerAccess> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'GET',
-      path: '/api/account/web-unblocker',
+      path: '/api/v1/webunblocker/orders',
     });
     return {
       connection: (res.connection as Record<string, unknown> | null) ?? null,
@@ -89,7 +89,7 @@ export class WebUnblocker {
   private async subscriptionAction(action: 'cancel' | 'pause' | 'resume'): Promise<WebUnblockerSubscription> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: `/api/account/web-unblocker/subscription/${action}`,
+      path: `/api/v1/webunblocker/subscription/${action}`,
     });
     return mapSubscription(res);
   }

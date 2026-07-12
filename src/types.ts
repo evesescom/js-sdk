@@ -17,7 +17,7 @@ export type OrderStatus =
   | 'expired';
 
 /**
- * Input to `client.activations.create`.
+ * Input to `client.numbers.create`.
  */
 export interface ActivationCreateRequest {
   /** ISO 3166-1 alpha-2 country code, lowercased (e.g. "ua"). */
@@ -35,7 +35,7 @@ export interface ActivationCreateRequest {
 }
 
 /**
- * The on-the-wire shape returned by /api/account/orders for a single order.
+ * The on-the-wire shape returned by /api/v1/numbers/orders for a single order.
  * Eveses paginated/show endpoints wrap this under `{ data: ... }`.
  */
 export interface Order {
@@ -60,7 +60,7 @@ export interface OrderSms {
   receivedAt?: string;
 }
 
-/** Response of `client.activations.sms`. */
+/** Response of `client.numbers.sms`. */
 export interface OrderSmsBundle {
   orderId: string;
   stored: OrderSms[];
@@ -75,14 +75,14 @@ export interface WalletBalance {
   currency: string;
 }
 
-/** Response of `client.catalog.countries`. */
+/** Response of `client.numbers.countries`. */
 export interface CatalogCountriesResponse {
   mode: OrderMode;
   /** ISO 3166-1 alpha-2 codes (lowercased), e.g. ["ua", "pl", "de"]. */
   countries: string[];
 }
 
-/** Response of `client.catalog.services`. */
+/** Response of `client.numbers.products`. */
 export interface CatalogServicesResponse {
   mode: OrderMode;
   /** Echoed back when supplied — informational on the v1 endpoint. */
@@ -112,7 +112,7 @@ export interface CatalogServiceWithDurations {
   durations: CatalogPricingDuration[];
 }
 
-/** Response of `client.catalog.pricing`. */
+/** Response of `client.numbers.pricing`. */
 export interface CatalogPricingResponse {
   mode: OrderMode;
   country: string;
@@ -174,26 +174,45 @@ export interface CaptchaSolution {
   priceMicroUsd?: number;
 }
 
-/** Filter params for `client.fingerprints.generate` / `.random`. */
-export interface FingerprintParams {
-  /** Output format: 'chromium' (default) or 'raw'. */
-  format?: string;
-  /** Platform/OS filter (e.g. Windows, Android, iOS, macOS, Linux). */
-  tags?: string;
-  /** ISO 3166-1 alpha-2 country code. */
-  country?: string;
-  /** Full browser build version (e.g. 145.0.7632.162). */
-  build_version?: string;
-  /** Minimum browser major version. */
-  min_browser_version?: number;
-  [key: string]: unknown;
+/** Terminal + interim status of a captcha usage item. */
+export type CaptchaUsageStatus = 'queued' | 'processing' | 'ready' | 'failed';
+
+/** A single captcha task in the usage ledger. */
+export interface CaptchaUsageItem {
+  id: number;
+  type: string;
+  status: CaptchaUsageStatus;
+  /** Micro-USD cost — use this (or `costCents`), NOT a cents-only field. */
+  costMicroUsd?: number;
+  costCents?: number;
+  createdAt?: string;
+  resolvedAt?: string;
+  error?: string;
+  /** Original snake_case server payload, for forward-compat. */
+  raw?: Record<string, unknown>;
 }
 
-/** A generated browser fingerprint returned by the fingerprints module. */
-export interface Fingerprint {
-  /** The raw fingerprint payload as returned by the provider. */
-  fingerprint: Record<string, unknown>;
-  priceMicroUsd?: number;
+/** Filter params for `client.captcha.usage`. */
+export interface CaptchaUsageListOptions {
+  status?: string;
+  type?: string;
+  /** ISO-8601 lower bound on created_at. */
+  createdGte?: string;
+  /** ISO-8601 upper bound on created_at. */
+  createdLte?: string;
+  cursor?: string;
+  /** Default 20, max 100. */
+  limit?: number;
+}
+
+/** Response of `client.captcha.usage` — cursor-paginated task history. */
+export interface CaptchaUsage {
+  data: CaptchaUsageItem[];
+  nextCursor?: string;
+  hasMore: boolean;
+  /** Accrued-but-unbilled totals across the ledger. */
+  unbilledMicroUsd?: number;
+  unbilledCents?: number;
 }
 
 /**
@@ -398,4 +417,102 @@ export interface TrialStatus {
   services: TrialServiceStatus[];
   /** Original snake_case server payload, for forward-compat. */
   raw?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Orders (global, cross-product feed)
+// ---------------------------------------------------------------------------
+
+/** The product a global order belongs to. */
+export type OrderSource = 'numbers' | 'proxy' | 'webunblocker' | 'emails';
+
+/** A normalised order from the global `/api/v1/orders` feed. */
+export interface OrderView {
+  source: OrderSource;
+  id: string;
+  /** Canonical status: pending|active|awaiting|completed|expired|canceled|failed. */
+  status: string;
+  amountCents?: number;
+  currency?: string;
+  title?: string;
+  createdAt?: string;
+  /** May be null/absent for some products. */
+  expiresAt?: string;
+  /** Deep-link to the product-native order resource. */
+  detailUrl?: string;
+  /** Original snake_case server payload, for forward-compat. */
+  raw?: Record<string, unknown>;
+}
+
+/** Filter params for `client.orders.list`. */
+export interface OrderListOptions {
+  /** Comma-separated services, e.g. "numbers,proxy". */
+  service?: string;
+  /** Canonical status filter. */
+  status?: string;
+  /** ISO-8601 lower bound on created_at. */
+  createdGte?: string;
+  /** ISO-8601 upper bound on created_at. */
+  createdLte?: string;
+  cursor?: string;
+  /** Default 20, max 100. */
+  limit?: number;
+}
+
+/** Cursor-paginated page of `OrderView`s. */
+export interface OrderViewPage {
+  data: OrderView[];
+  nextCursor?: string;
+  hasMore: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Quotas
+// ---------------------------------------------------------------------------
+
+/** A single remaining-quota entry. */
+export interface QuotaEntry {
+  /** Present on trial entries (e.g. "sms"). */
+  service?: string;
+  /** Present on metered entries (e.g. "iproyal"). */
+  provider?: string;
+  /** Counter unit, e.g. "count" | "gb" | "requests". */
+  unit?: string;
+  remaining?: number;
+  total?: number;
+  used?: number;
+  expiresAt?: string;
+  /** Original snake_case server payload, for forward-compat. */
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * Response of `client.quotas.all`. Only products with a decrementing counter
+ * are present; a key is omitted when the user has none.
+ */
+export interface Quotas {
+  trial?: QuotaEntry[];
+  proxy?: QuotaEntry[];
+  webunblocker?: QuotaEntry[];
+  /** Original snake_case server payload, for forward-compat. */
+  raw?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Me
+// ---------------------------------------------------------------------------
+
+/**
+ * The authenticated account. The v1 payload adds `abilities` (what THIS token
+ * can do) and `features` (which product entry points to show).
+ */
+export interface Me {
+  id?: number | string;
+  email?: string;
+  /** What this token can do, e.g. ["*"]. */
+  abilities: string[];
+  /** Product feature gates, e.g. { proxy: true, captcha: false }. */
+  features: Record<string, boolean>;
+  /** Full snake_case server payload — carries all remaining `me` fields. */
+  raw: Record<string, unknown>;
 }

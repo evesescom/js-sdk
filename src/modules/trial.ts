@@ -3,7 +3,7 @@ import type { TrialServiceStatus, TrialStatus } from '../types';
 
 /**
  * Trial namespace — check active trial state and subscribe to product trials.
- * Hits the account-scoped endpoints `/api/account/trial/*`.
+ * Hits the versioned endpoints `/api/v1/trial/*`.
  */
 export class Trial {
   constructor(private readonly client: Eveses) {}
@@ -12,7 +12,7 @@ export class Trial {
   async status(): Promise<TrialStatus> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'GET',
-      path: '/api/account/trial',
+      path: '/api/v1/trial',
     });
     const services = Array.isArray(res.services)
       ? (res.services as Record<string, unknown>[]).map(mapServiceStatus)
@@ -27,7 +27,7 @@ export class Trial {
   async subscribe(services: string[]): Promise<TrialStatus> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: '/api/account/trial/subscribe',
+      path: '/api/v1/trial/subscribe',
       body: { services },
     });
     const mapped = Array.isArray(res.services)

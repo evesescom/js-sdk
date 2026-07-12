@@ -8,12 +8,14 @@ import {
   EvesesServerError,
   EvesesValidationError,
 } from './errors';
-import { Activations } from './modules/activations';
 import { Captcha } from './modules/captcha';
-import { Catalog } from './modules/catalog';
 import { Emails } from './modules/emails';
-import { Fingerprints } from './modules/fingerprints';
+import { MeModule } from './modules/me';
+import { Numbers } from './modules/numbers';
+import { Orders } from './modules/orders';
+import { Pricing } from './modules/pricing';
 import { Proxy } from './modules/proxy';
+import { QuotasModule } from './modules/quotas';
 import { Trial } from './modules/trial';
 import { Wallet } from './modules/wallet';
 import { WebUnblocker } from './modules/webUnblocker';
@@ -21,7 +23,7 @@ import { Webhooks } from './modules/webhooks';
 
 const DEFAULT_BASE_URL = 'https://api.eveses.io';
 const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.3.0';
+const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.4.0';
 
 /** Internal request shape used by every module. */
 export interface RequestOptions {
@@ -38,18 +40,20 @@ export interface RequestOptions {
  *
  * @example
  *   const client = new Eveses({ apiKey: process.env.EVESES_API_KEY! });
- *   const order = await client.activations.create({ country: 'ua', service: 'telegram' });
+ *   const order = await client.numbers.create({ country: 'ua', service: 'telegram' });
  */
 export class Eveses {
-  public readonly activations: Activations;
+  public readonly numbers: Numbers;
   public readonly wallet: Wallet;
-  public readonly catalog: Catalog;
   public readonly captcha: Captcha;
   public readonly emails: Emails;
-  public readonly fingerprints: Fingerprints;
   public readonly proxy: Proxy;
   public readonly trial: Trial;
   public readonly webUnblocker: WebUnblocker;
+  public readonly orders: Orders;
+  public readonly pricing: Pricing;
+  public readonly quotas: QuotasModule;
+  public readonly me: MeModule;
   /** Static-like webhook helpers (also exported as `Webhooks` from the package root). */
   public readonly webhooks: typeof Webhooks;
 
@@ -78,15 +82,17 @@ export class Eveses {
       );
     }
 
-    this.activations = new Activations(this);
+    this.numbers = new Numbers(this);
     this.wallet = new Wallet(this);
-    this.catalog = new Catalog(this);
     this.captcha = new Captcha(this);
     this.emails = new Emails(this);
-    this.fingerprints = new Fingerprints(this);
     this.proxy = new Proxy(this);
     this.trial = new Trial(this);
     this.webUnblocker = new WebUnblocker(this);
+    this.orders = new Orders(this);
+    this.pricing = new Pricing(this);
+    this.quotas = new QuotasModule(this);
+    this.me = new MeModule(this);
     this.webhooks = Webhooks;
   }
 

@@ -2,10 +2,7 @@ import type { Eveses } from '../client';
 import type { WalletBalance } from '../types';
 
 /**
- * Wallet namespace.
- *
- * Hits `/api/account/wallet`. There is no `/api/v1/wallet` in the current
- * spec — see the package README for the v1-vs-account-scoped route gap.
+ * Wallet namespace. Hits the versioned endpoint `/api/v1/wallet`.
  */
 export class Wallet {
   constructor(private readonly client: Eveses) {}
@@ -14,7 +11,7 @@ export class Wallet {
   async balance(): Promise<WalletBalance> {
     const res = await this.client.request<{ data: Record<string, unknown> }>({
       method: 'GET',
-      path: '/api/account/wallet',
+      path: '/api/v1/wallet',
     });
     const d = res.data ?? {};
     return {

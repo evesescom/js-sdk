@@ -1,7 +1,7 @@
 {
   "name": "@eveses/sdk",
-  "version": "0.3.0",
-  "description": "Official Eveses SDK — activations, wallet, catalog, proxy, web-unblocker, emails, trial, captcha, fingerprints, webhooks.",
+  "version": "0.4.0",
+  "description": "Official Eveses SDK for the /api/v1 surface — numbers, wallet, proxy, webunblocker, emails, trial, captcha, orders, pricing, quotas, webhooks.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "commonjs",
@@ -17,12 +17,12 @@
   "keywords": [
     "eveses",
     "sms",
+    "numbers",
     "activations",
     "proxy",
-    "web-unblocker",
+    "webunblocker",
     "emails",
     "captcha",
-    "fingerprints",
     "sdk",
     "api"
   ],

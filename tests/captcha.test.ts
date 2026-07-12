@@ -42,13 +42,13 @@ test('captcha.solve polls until ready and returns the solution', async () => {
   assert.equal(res.solution, 'TOK');
   assert.equal(res.priceMicroUsd, 3392);
 
-  assert.equal(calls[0].url, 'https://x.test/api/account/captcha/solve');
+  assert.equal(calls[0].url, 'https://x.test/api/v1/captcha/solve');
   assert.equal(calls[0].init.method, 'POST');
   assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
     type: 'RecaptchaV2TaskProxyless',
     params: { websiteURL: 'x', websiteKey: 'k' },
   });
-  assert.equal(calls[1].url, 'https://x.test/api/account/captcha/result/7');
+  assert.equal(calls[1].url, 'https://x.test/api/v1/captcha/result/7');
 });
 
 test('captcha.solve throws on a failed task', async () => {

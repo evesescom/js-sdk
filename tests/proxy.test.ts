@@ -37,7 +37,7 @@ test('proxy.purchase (residential) posts gb + subscription and Idempotency-Key',
   const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
   const order = await client.proxy.purchase({ type: 'residential', gb: 10, subscription: true, idempotencyKey: 'idem-px' });
 
-  assert.equal(calls[0].url, 'https://x.test/api/account/proxies/purchase');
+  assert.equal(calls[0].url, 'https://x.test/api/v1/proxy/orders');
   assert.equal(calls[0].init.method, 'POST');
   assert.deepEqual(JSON.parse(String(calls[0].init.body)), { type: 'residential', gb: 10, subscription: true });
   const headers = calls[0].init.headers as Record<string, string>;
@@ -76,7 +76,7 @@ test('proxy.quote (residential) builds the query string', async () => {
   const quote = await client.proxy.quote({ type: 'residential', gb: 10, subscription: true });
 
   const url = new URL(calls[0].url);
-  assert.equal(url.pathname, '/api/account/proxies/quote');
+  assert.equal(url.pathname, '/api/v1/proxy/quote');
   assert.equal(url.searchParams.get('type'), 'residential');
   assert.equal(url.searchParams.get('gb'), '10');
   assert.equal(url.searchParams.get('subscription'), 'true');
@@ -97,7 +97,7 @@ test('proxy.list maps residential, subscription, and orders', async () => {
   const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
   const list = await client.proxy.list();
 
-  assert.equal(calls[0].url, 'https://x.test/api/account/proxies');
+  assert.equal(calls[0].url, 'https://x.test/api/v1/proxy/orders');
   assert.equal(list.residential?.username, 'u');
   assert.equal(list.subscription?.status, 'active');
   assert.equal(list.subscription?.discountPct, 15);
@@ -113,11 +113,11 @@ test('proxy.extend and proxy.autoRenew hit the order sub-routes', async () => {
   const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
 
   await client.proxy.extend('px_1', 30);
-  assert.equal(calls[0].url, 'https://x.test/api/account/proxies/px_1/extend');
+  assert.equal(calls[0].url, 'https://x.test/api/v1/proxy/orders/px_1/extend');
   assert.deepEqual(JSON.parse(String(calls[0].init.body)), { days: 30 });
 
   const order = await client.proxy.autoRenew('px_1', true);
-  assert.equal(calls[1].url, 'https://x.test/api/account/proxies/px_1/auto-renew');
+  assert.equal(calls[1].url, 'https://x.test/api/v1/proxy/orders/px_1/auto-renew');
   assert.deepEqual(JSON.parse(String(calls[1].init.body)), { enabled: true });
   assert.equal(order.autoExtend, true);
 });
@@ -126,7 +126,7 @@ test('proxy.subscriptionPause posts to the subscription route', async () => {
   const { fn, calls } = makeFetch([{ status: 200, body: { status: 'paused', gb: 10, discount_pct: 15 } }]);
   const client = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fn });
   const sub = await client.proxy.subscriptionPause();
-  assert.equal(calls[0].url, 'https://x.test/api/account/proxies/subscription/pause');
+  assert.equal(calls[0].url, 'https://x.test/api/v1/proxy/subscription/pause');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(sub.status, 'paused');
 });

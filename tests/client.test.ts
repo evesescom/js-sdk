@@ -37,7 +37,7 @@ function makeFetch(responses: Array<{ status: number; body?: unknown; headers?: 
   return { fn, calls };
 }
 
-test('activations.create posts JSON, sends Bearer + Idempotency-Key, maps response', async () => {
+test('numbers.create posts JSON, sends Bearer + Idempotency-Key, maps response', async () => {
   const { fn, calls } = makeFetch([
     {
       status: 200,
@@ -54,7 +54,7 @@ test('activations.create posts JSON, sends Bearer + Idempotency-Key, maps respon
   ]);
 
   const client = new Eveses({ apiKey: 'sk_test', baseUrl: 'https://api.example.test', fetch: fn });
-  const order = await client.activations.create({
+  const order = await client.numbers.create({
     country: 'ua',
     service: 'telegram',
     idempotencyKey: 'idem-1',
@@ -62,7 +62,7 @@ test('activations.create posts JSON, sends Bearer + Idempotency-Key, maps respon
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, 'https://api.example.test/api/account/orders');
+  assert.equal(calls[0].url, 'https://api.example.test/api/v1/numbers/orders');
   assert.equal(calls[0].init.method, 'POST');
   const headers = calls[0].init.headers as Record<string, string>;
   assert.equal(headers.Authorization, 'Bearer sk_test');
@@ -88,7 +88,7 @@ test('429 triggers exactly one retry, honouring Retry-After', async () => {
     { status: 200, body: { data: { order_id: 'X', status: 'waiting_sms' } } },
   ]);
   const client = new Eveses({ apiKey: 'k', baseUrl: 'https://api.example.test', fetch: fn });
-  const order = await client.activations.get('X');
+  const order = await client.numbers.get('X');
   assert.equal(calls.length, 2);
   assert.equal(order.orderId, 'X');
 });

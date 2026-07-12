@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
     // `services()` is the global product catalog for the mode; `country`
     // is informational on v1 today.
-    const services = await client.catalog.services({ mode: 'activation', country: COUNTRY });
+    const services = await client.numbers.products({ mode: 'activation', country: COUNTRY });
     console.log(`${services.services.length} services available (mode=${services.mode})`);
     if (!services.services.includes(SERVICE)) {
       console.warn(`Warning: '${SERVICE}' not in catalog — request may 404.`);
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
 
     // The idempotency key MUST be stable across retries of the same intent.
     // randomUUID() is fine because we call create() exactly once.
-    const order = await client.activations.create({
+    const order = await client.numbers.create({
       country: COUNTRY,
       service: SERVICE,
       mode: 'activation',
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     console.log(
       `Created order ${order.orderId}: phone=${order.phone ?? '?'} status=${order.status}`,
     );
-    console.log('Next: poll client.activations.sms(order.orderId) for the code.');
+    console.log('Next: poll client.numbers.sms(order.orderId) for the code.');
   } catch (err) {
     if (err instanceof EvesesAuthError) {
       console.error('Auth failed — check EVESES_API_KEY (must start with sk_).');

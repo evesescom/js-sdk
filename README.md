@@ -1,10 +1,10 @@
 # @eveses/sdk
 
-Official JavaScript / TypeScript SDK for the [Eveses](https://eveses.com) developer API.
-SMS activations & rentals, wallet, catalog (countries / services / pricing), proxies,
-web-unblocker, temporary email inboxes, product trials, captcha solving, browser
-fingerprints, and webhook signature verification — works on Node 18+ and any runtime
-that ships `fetch` + `crypto`.
+Official JavaScript / TypeScript SDK for the [Eveses](https://eveses.com) developer API
+(`/api/v1`). SMS numbers (activations & rentals + catalog), wallet, proxies, web-unblocker,
+temporary email inboxes, product trials, captcha solving, a unified order feed, consolidated
+pricing, remaining quotas, and webhook signature verification — works on Node 18+ and any
+runtime that ships `fetch` + `crypto`.
 
 ## Install
 
@@ -26,7 +26,7 @@ const client = new Eveses({
   // baseUrl defaults to https://api.eveses.io
 });
 
-const order = await client.activations.create({
+const order = await client.numbers.create({
   country: 'ua',
   service: 'telegram',
   idempotencyKey: crypto.randomUUID(),
@@ -48,22 +48,27 @@ The client exposes one namespace per product family:
 
 | Namespace | What it does |
 | --- | --- |
-| `client.activations` | Create / read / cancel / finish SMS activations & rentals, pull SMS. |
+| `client.numbers` | Create / read / cancel / finish / retry / repeat / auto-renew SMS orders + batch, pull SMS, and read the numbers catalog (pricing / countries / products / carriers / states). |
 | `client.wallet` | Read the wallet balance (total / held / available). |
-| `client.catalog` | Read-only countries / services / pricing metadata. |
 | `client.proxy` | Buy & manage residential (per-GB) and static (per-IP) proxies. |
 | `client.webUnblocker` | Buy & manage request-credit bundles for the unblocking proxy. |
 | `client.emails` | Buy & manage temporary email inboxes and read their messages. |
 | `client.trial` | Check trial status and subscribe to product trials. |
-| `client.captcha` | Solve captchas (pay-per-use, count-on-success). |
-| `client.fingerprints` | Generate / fetch browser fingerprints (pay-per-use). |
+| `client.captcha` | Solve captchas (pay-per-use, count-on-success) + rates + usage. |
+| `client.orders` | Unified cross-product order history (normalised `OrderView`). |
+| `client.pricing` | Consolidated price list across all products. |
+| `client.quotas` | Remaining prepaid balances (trial credits, metered allowances). |
+| `client.me` | The authenticated account, incl. `abilities` + `features`. |
 | `client.webhooks` | Static HMAC-SHA256 signature verification (also `Webhooks` at the root). |
 
-## Activations
+## Numbers
+
+The unified SMS surface (`/api/v1/numbers/*`) — order lifecycle **and** the
+read-only catalog live under one namespace.
 
 ```ts
 // Create
-const order = await client.activations.create({
+const order = await client.numbers.create({
   country: 'ua',
   service: 'telegram',
   mode: 'activation',           // or 'rent'
@@ -72,28 +77,32 @@ const order = await client.activations.create({
   idempotencyKey: 'my-uuid',    // optional, also sent as Idempotency-Key header
 });
 
+// Buy several in one call
+const orders = await client.numbers.batch([
+  { country: 'ua', service: 'telegram' },
+  { country: 'pl', service: 'wa' },
+]);
+
 // Read
-const fresh = await client.activations.get(order.orderId);
-const sms   = await client.activations.sms(order.orderId);
+const fresh = await client.numbers.get(order.orderId);
+const sms   = await client.numbers.sms(order.orderId);
 //   sms.stored — delivered to us via upstream webhook
 //   sms.fresh  — pulled from the upstream provider on demand
 
 // Lifecycle
-await client.activations.cancel(order.orderId);  // refund-where-supported
-await client.activations.finish(order.orderId);  // mark consumed
-```
+await client.numbers.cancel(order.orderId);      // refund-where-supported
+await client.numbers.finish(order.orderId);      // mark consumed
+await client.numbers.retry(order.orderId);       // re-poll for another SMS
+await client.numbers.repeat(order.orderId);      // buy the same number again
+await client.numbers.autoRenew(order.orderId, true);  // rentals only
 
-## Catalog (countries / services / pricing)
-
-Read-only metadata for driving order-creation UX. All three calls hit the
-API-key-authenticated `/api/v1/numbers/*` routes, so the same Bearer token
-that creates orders can populate selectors and price tables.
-
-```ts
-const { countries } = await client.catalog.countries({ mode: 'activation' });
-const { services }  = await client.catalog.services({ mode: 'activation', country: 'ua' });
-const pricing       = await client.catalog.pricing({ mode: 'activation', country: 'ua', service: 'telegram' });
+// Catalog (drives order-creation UX)
+const { countries } = await client.numbers.countries({ mode: 'activation' });
+const { services }  = await client.numbers.products({ mode: 'activation', country: 'ua' });
+const pricing       = await client.numbers.pricing({ mode: 'activation', country: 'ua', service: 'telegram' });
 //   pricing.services[0].durations[0].priceCents → 50
+const carriers      = await client.numbers.carriers({ country: 'us' });
+const states        = await client.numbers.states({ country: 'us' });
 ```
 
 `mode` accepts `'activation' | 'rent'`. For rentals, pass `durationMinutes` to
@@ -107,9 +116,8 @@ details come back under the white-label host.
 
 ```ts
 // Browse
-const packages  = await client.proxy.packages();                    // residential GB ladder
+const pricing   = await client.proxy.pricing();                     // residential GB ladder + static catalogue
 const endpoints = await client.proxy.endpoints();                   // white-label host + ports
-const catalog   = await client.proxy.catalog();                     // static (per-IP) products
 const locations = await client.proxy.locations('residential');      // targeting options
 
 // Quote → buy (residential, per-GB)
@@ -129,6 +137,7 @@ const ip = await client.proxy.purchase({
 
 // Manage
 const mine = await client.proxy.list();                 // { residential, subscription, orders }
+const one  = await client.proxy.get(ip.uuid);           // a single per-IP order
 await client.proxy.extend(ip.uuid, 30);                 // re-charge a per-IP order for N days
 await client.proxy.autoRenew(ip.uuid, true);            // toggle auto-extend
 await client.proxy.resetSessions();                     // rotate residential sticky sessions
@@ -146,7 +155,7 @@ Buy and manage request-credit bundles (metered, per-request) for the headless-br
 unblocking proxy.
 
 ```ts
-const packages = await client.webUnblocker.packages();
+const pricing = await client.webUnblocker.pricing();
 await client.webUnblocker.quote(10_000, /* subscription */ true);
 
 const order = await client.webUnblocker.purchase(
@@ -154,7 +163,7 @@ const order = await client.webUnblocker.purchase(
   crypto.randomUUID(),                 // optional idempotency key
 );
 
-const { connection, subscription } = await client.webUnblocker.access();
+const { connection, subscription } = await client.webUnblocker.list();
 
 await client.webUnblocker.subscriptionPause();
 await client.webUnblocker.subscriptionResume();
@@ -166,7 +175,7 @@ await client.webUnblocker.subscriptionCancel();
 Buy and manage temporary / private email inboxes, then read their messages.
 
 ```ts
-const domains = await client.emails.domains();          // available sending domains
+const pricing = await client.emails.pricing();          // prices + available domains (under `domains`)
 await client.emails.quote({ domain: 'example.com' });
 
 const inbox = await client.emails.purchase(
@@ -176,13 +185,13 @@ const inbox = await client.emails.purchase(
 console.log(inbox.address);
 
 const inboxes = await client.emails.list();             // include released: list(true)
-const one     = await client.emails.get(inbox.uuid);
+const one     = await client.emails.get(inbox.address); // inbox routes are keyed on the email address
 
-const page = await client.emails.messages(inbox.uuid, { page: 1, perPage: 20 });
+const page = await client.emails.messages(inbox.address, { page: 1, perPage: 20 });
 for (const msg of page.items) console.log(msg.from, msg.subject);
 
-await client.emails.markRead(inbox.uuid, page.items[0].id);
-await client.emails.release(inbox.uuid);                // delete the inbox early
+await client.emails.markRead(inbox.address, page.items[0].id);
+await client.emails.release(inbox.address);             // delete the inbox early
 ```
 
 ## Trial
@@ -209,18 +218,36 @@ const result = await client.captcha.solve(
   { timeoutSec: 120, idempotencyKey: crypto.randomUUID() },
 );
 console.log(result.solution, result.priceMicroUsd);
+
+// Per-solve rates and the billing/usage ledger
+const rates = await client.captcha.rates();
+const usage = await client.captcha.usage({ status: 'ready', limit: 50 });
+for (const t of usage.data) console.log(t.type, t.status, t.costCents);
+//   usage.nextCursor / usage.hasMore for pagination
+//   usage.unbilledMicroUsd — accrued-but-unbilled total
 ```
 
-## Fingerprints
+## Orders, pricing, quotas
 
-Generate browser fingerprints, billed pay-per-use from the wallet (count-on-success).
-Unlike captcha solving this is synchronous — one request returns a complete fingerprint.
+Cross-product aggregates for unified dashboards.
 
 ```ts
-const fp = await client.fingerprints.generate({ tags: 'Windows', country: 'us' });
-console.log(fp.fingerprint, fp.priceMicroUsd);
+// Unified order feed (numbers | proxy | webunblocker | emails — NOT captcha)
+const feed = await client.orders.list({ service: 'proxy,numbers', limit: 50 });
+for (const o of feed.data) console.log(o.source, o.status, o.amountCents, o.detailUrl);
+const single = await client.orders.get('b1f2…-uuid');   // normalised OrderView for any product
 
-const random = await client.fingerprints.random({ min_browser_version: 130 });
+// Every product's prices in one call
+const allPrices = await client.pricing.all();
+
+// Remaining prepaid balances (a key is omitted when the user has none)
+const q = await client.quotas.all();
+//   q.trial / q.proxy / q.webunblocker → QuotaEntry[]
+
+// The authenticated account — gate product UI on features instead of build flags
+const me = await client.me.get();
+if (me.features.proxy) { /* show proxies */ }
+console.log(me.abilities); // e.g. ["*"]
 ```
 
 ## Webhook verification
@@ -276,7 +303,7 @@ All non-2xx responses throw a typed subclass of `EvesesError`:
 import { EvesesValidationError } from '@eveses/sdk';
 
 try {
-  await client.activations.create({ country: '', service: '' });
+  await client.numbers.create({ country: '', service: '' });
 } catch (err) {
   if (err instanceof EvesesValidationError) {
     console.error(err.errors);
@@ -286,20 +313,16 @@ try {
 }
 ```
 
-## API surface vs OpenAPI
+## API surface
 
-The Eveses public OpenAPI spec exposes the customer-facing endpoints under
-`/api/account/*` (legacy account scope) and `/api/v1/numbers/*` (new versioned
-public API). For API-key consumers (`kind=api_key` Sanctum tokens), the
-v1 surface is currently a **thin wrapper** around the same controllers — orders
-and wallet are still served from `/api/account/*`. This SDK targets the
-account-scoped routes, which is where v1 reads & writes terminate today. When
-v1 ships its own activations / wallet routes, you can override the base URL
-without changing call sites; the response shapes are identical.
-
-The newer product families (proxy, web-unblocker, emails, trial, captcha,
-fingerprints) are served exclusively from the account-scoped `/api/account/*`
-namespace and are exposed here 1:1.
+Every call in this SDK targets the versioned `/api/v1/*` surface. Authentication
+is unchanged — a Sanctum bearer token (`Authorization: Bearer <apiKey>`). Notable
+consolidations in v1: SMS lifecycle **and** catalog live together under
+`/api/v1/numbers/*` (the `numbers` namespace); proxy / web-unblocker / emails each
+expose `/orders` (buy + list) and `/pricing`; and `orders`, `pricing`, and `quotas`
+provide cross-product aggregates. Every `/v1` response also carries
+`RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` headers (plus
+`Retry-After` on a 429) for backoff.
 
 ## Configuration
 
@@ -323,6 +346,33 @@ node --test tests/
 ```
 
 ## Changelog
+
+### 0.4.0
+
+- **Moved to `/api/v1/*`.** Every request path was repointed from the legacy
+  `/api/account/*` surface to the versioned `/api/v1/*` surface. Base URL and
+  Bearer auth are unchanged.
+- **`numbers` module (merge).** The old `activations` and `catalog` modules were
+  merged into a single `client.numbers` namespace over `/api/v1/numbers/*`:
+  order lifecycle `create` / `get` / `sms` / `cancel` / `finish` / `retry` /
+  `repeat` / `autoRenew` + `batch`, plus catalog `pricing` / `countries` /
+  `products` / `carriers` / `states`.
+- **`webUnblocker` renamed** on the wire — `/api/account/web-unblocker/*` →
+  `/api/v1/webunblocker/*` (de-hyphenated); buy/list now under `/orders`,
+  price list under `/pricing`.
+- **`proxy` / `emails` repointed** — buy/list under `/orders`, price list under
+  `/pricing`; proxy adds `get(uuid)`; emails inbox routes are keyed on the email
+  address; `emails.domains()` → `emails.pricing()` (domains under the `domains` key).
+- **New `orders` module** — unified cross-product order feed (`GET /api/v1/orders`
+  + `/{uuid}`), normalised into `OrderView`.
+- **New `pricing` module** — consolidated price list (`GET /api/v1/pricing`).
+- **New `quotas` module** — remaining prepaid balances (`GET /api/v1/quotas`).
+- **New `me` module** — the authenticated account, now carrying `abilities` +
+  `features` (`GET /api/v1/me`).
+- **`captcha.usage()` added** (`GET /api/v1/captcha/usage`) alongside the kept
+  `solve` / result-poll / `rates`.
+- **Removed the `fingerprints` module** — the product is gone.
+- Default `userAgent` bumped to `@eveses/sdk-js/0.4.0`.
 
 ### 0.3.0
 

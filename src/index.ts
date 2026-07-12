@@ -2,12 +2,14 @@
  * @eveses/sdk — public exports.
  */
 export { Eveses } from './client';
-export { Activations } from './modules/activations';
 export { Captcha } from './modules/captcha';
-export { Catalog } from './modules/catalog';
 export { Emails } from './modules/emails';
-export { Fingerprints } from './modules/fingerprints';
+export { MeModule } from './modules/me';
+export { Numbers } from './modules/numbers';
+export { Orders } from './modules/orders';
+export { Pricing } from './modules/pricing';
 export { Proxy } from './modules/proxy';
+export { QuotasModule } from './modules/quotas';
 export { Trial } from './modules/trial';
 export { Wallet } from './modules/wallet';
 export { WebUnblocker } from './modules/webUnblocker';
@@ -28,6 +30,10 @@ export type {
   CaptchaSolution,
   CaptchaSolveOptions,
   CaptchaStatus,
+  CaptchaUsage,
+  CaptchaUsageItem,
+  CaptchaUsageListOptions,
+  CaptchaUsageStatus,
   CatalogCountriesResponse,
   CatalogPricingDuration,
   CatalogPricingResponse,
@@ -39,13 +45,16 @@ export type {
   EmailPurchaseRequest,
   EmailQuoteRequest,
   EvesesOptions,
-  Fingerprint,
-  FingerprintParams,
+  Me,
   Order,
+  OrderListOptions,
   OrderMode,
   OrderSms,
   OrderSmsBundle,
+  OrderSource,
   OrderStatus,
+  OrderView,
+  OrderViewPage,
   Paginated,
   ProxyList,
   ProxyOrder,
@@ -54,6 +63,8 @@ export type {
   ProxyStaticSelection,
   ProxySubscription,
   ProxyType,
+  QuotaEntry,
+  Quotas,
   TrialServiceStatus,
   TrialStatus,
   WalletBalance,

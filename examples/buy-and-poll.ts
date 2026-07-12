@@ -76,7 +76,7 @@ async function pollForSms(
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (signal.aborted) return null;
-    const bundle = await client.activations.sms(order.orderId);
+    const bundle = await client.numbers.sms(order.orderId);
     const messages = dedupeSms(bundle.stored, bundle.fresh);
     if (messages.length > 0) return messages[0]!;
     const remaining = Math.max(0, Math.round((deadline - Date.now()) / 1000));
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
   });
 
   try {
-    order = await client.activations.create({
+    order = await client.numbers.create({
       country: COUNTRY,
       service: SERVICE,
       idempotencyKey: randomUUID(),
@@ -114,7 +114,7 @@ async function main(): Promise<void> {
 
     if (controller.signal.aborted) {
       try {
-        await client.activations.cancel(order.orderId);
+        await client.numbers.cancel(order.orderId);
         console.log('Cancelled cleanly.');
       } catch (err) {
         if (err instanceof EvesesNotFoundError) {
@@ -128,12 +128,12 @@ async function main(): Promise<void> {
 
     if (!sms) {
       console.log('Timed out waiting for SMS — cancelling and refunding held balance.');
-      await client.activations.cancel(order.orderId);
+      await client.numbers.cancel(order.orderId);
       return;
     }
 
     console.log(`Got SMS from ${sms.sender ?? 'unknown'}: ${JSON.stringify(sms.text)}`);
-    const finished = await client.activations.finish(order.orderId);
+    const finished = await client.numbers.finish(order.orderId);
     console.log(`Order ${finished.orderId} finished (status=${finished.status}).`);
   } catch (err) {
     if (err instanceof EvesesError) {

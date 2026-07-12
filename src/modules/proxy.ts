@@ -12,7 +12,7 @@ import type {
 /**
  * Proxy namespace — buy and manage residential (metered, per-GB) and static
  * (per-IP: ISP / datacenter / IPv6 / sneaker / mobile) proxies. Hits the
- * account-scoped endpoints `/api/account/proxies/*`.
+ * versioned endpoints `/api/v1/proxy/*`.
  *
  * The provider stays invisible: connection details are returned under the
  * white-label host.
@@ -20,19 +20,14 @@ import type {
 export class Proxy {
   constructor(private readonly client: Eveses) {}
 
-  /** Residential GB package ladder (price, per-GB, discount). */
-  async packages(): Promise<Record<string, unknown>> {
-    return this.client.request({ method: 'GET', path: '/api/account/proxies/packages' });
+  /** Consolidated price list (residential GB ladder + static per-IP catalogue). */
+  async pricing(): Promise<Record<string, unknown>> {
+    return this.client.request({ method: 'GET', path: '/api/v1/proxy/pricing' });
   }
 
   /** White-label connection endpoints: regional entry subdomains + HTTP/SOCKS5 ports. */
   async endpoints(): Promise<Record<string, unknown>> {
-    return this.client.request({ method: 'GET', path: '/api/account/proxies/endpoints' });
-  }
-
-  /** Static (per-IP) catalogue — products/plans/locations with user prices. */
-  async catalog(): Promise<Record<string, unknown>> {
-    return this.client.request({ method: 'GET', path: '/api/account/proxies/catalog' });
+    return this.client.request({ method: 'GET', path: '/api/v1/proxy/endpoints' });
   }
 
   /**
@@ -42,7 +37,7 @@ export class Proxy {
   async locations(type: ProxyType = 'residential'): Promise<Record<string, unknown>> {
     return this.client.request({
       method: 'GET',
-      path: '/api/account/proxies/locations',
+      path: '/api/v1/proxy/locations',
       query: { type },
     });
   }
@@ -63,7 +58,7 @@ export class Proxy {
       query.location_id = req.selection.locationId;
       query.quantity = req.quantity ?? 1;
     }
-    return this.client.request({ method: 'GET', path: '/api/account/proxies/quote', query });
+    return this.client.request({ method: 'GET', path: '/api/v1/proxy/quote', query });
   }
 
   /** Buy proxies (residential GB top-up or static IPs). Returns the created order. */
@@ -86,7 +81,7 @@ export class Proxy {
 
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: '/api/account/proxies/purchase',
+      path: '/api/v1/proxy/orders',
       body,
       headers,
     });
@@ -100,13 +95,22 @@ export class Proxy {
   async list(): Promise<ProxyList> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'GET',
-      path: '/api/account/proxies',
+      path: '/api/v1/proxy/orders',
     });
     return {
       residential: (res.residential as Record<string, unknown> | null) ?? null,
       subscription: res.subscription ? mapSubscription(res.subscription as Record<string, unknown>) : null,
       orders: Array.isArray(res.orders) ? (res.orders as Record<string, unknown>[]).map(mapOrder) : [],
     };
+  }
+
+  /** Get a single proxy order by UUID. */
+  async get(orderUuid: string): Promise<ProxyOrder> {
+    const res = await this.client.request<Record<string, unknown>>({
+      method: 'GET',
+      path: `/api/v1/proxy/orders/${encodeURIComponent(orderUuid)}`,
+    });
+    return mapOrder(res);
   }
 
   /**
@@ -116,7 +120,7 @@ export class Proxy {
   async extend(orderUuid: string, days = 30): Promise<ProxyOrder> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: `/api/account/proxies/${encodeURIComponent(orderUuid)}/extend`,
+      path: `/api/v1/proxy/orders/${encodeURIComponent(orderUuid)}/extend`,
       body: { days },
     });
     return mapOrder(res);
@@ -126,7 +130,7 @@ export class Proxy {
   async autoRenew(orderUuid: string, enabled: boolean): Promise<ProxyOrder> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: `/api/account/proxies/${encodeURIComponent(orderUuid)}/auto-renew`,
+      path: `/api/v1/proxy/orders/${encodeURIComponent(orderUuid)}/auto-renew`,
       body: { enabled },
     });
     return mapOrder(res);
@@ -134,19 +138,19 @@ export class Proxy {
 
   /** Reset the residential sticky sessions (next request rotates IPs). */
   async resetSessions(): Promise<Record<string, unknown>> {
-    return this.client.request({ method: 'POST', path: '/api/account/proxies/sessions/reset' });
+    return this.client.request({ method: 'POST', path: '/api/v1/proxy/sessions-reset' });
   }
 
   /** Activate the free trial for proxies (one-shot per account). */
   async trial(): Promise<Record<string, unknown>> {
-    return this.client.request({ method: 'POST', path: '/api/account/proxies/trial' });
+    return this.client.request({ method: 'POST', path: '/api/v1/proxy/trial' });
   }
 
   /** Residential usage analytics — daily traffic/requests timeline + top hosts. */
   async usage(opts: { from?: string; to?: string } = {}): Promise<Record<string, unknown>> {
     return this.client.request({
       method: 'GET',
-      path: '/api/account/proxies/usage',
+      path: '/api/v1/proxy/usage',
       query: { from: opts.from, to: opts.to },
     });
   }
@@ -169,7 +173,7 @@ export class Proxy {
   private async subscriptionAction(action: 'cancel' | 'pause' | 'resume'): Promise<ProxySubscription> {
     const res = await this.client.request<Record<string, unknown>>({
       method: 'POST',
-      path: `/api/account/proxies/subscription/${action}`,
+      path: `/api/v1/proxy/subscription/${action}`,
     });
     return mapSubscription(res);
   }
