@@ -53,6 +53,7 @@ The client exposes one namespace per product family:
 | `client.proxy` | Buy & manage residential (per-GB) and static (per-IP) proxies. |
 | `client.webUnblocker` | Buy & manage request-credit bundles for the unblocking proxy. |
 | `client.emails` | Buy & manage temporary email inboxes and read their messages. |
+| `client.marketplace` | Browse the digital-goods marketplace (catalog / categories / filters) and purchase (quote / buy / orders / order / reveal). |
 | `client.trial` | Check trial status and subscribe to product trials. |
 | `client.captcha` | Solve captchas (pay-per-use, count-on-success) + rates + usage. |
 | `client.orders` | Unified cross-product order history (normalised `OrderView`). |
@@ -119,6 +120,7 @@ details come back under the white-label host.
 const pricing   = await client.proxy.pricing();                     // residential GB ladder + static catalogue
 const endpoints = await client.proxy.endpoints();                   // white-label host + ports
 const locations = await client.proxy.locations('residential');      // targeting options
+const geo       = await client.proxy.locationsDetail('us');         // per-country states / cities / ISPs
 
 // Quote → buy (residential, per-GB)
 await client.proxy.quote({ type: 'residential', gb: 5 });
@@ -346,6 +348,18 @@ node --test tests/
 ```
 
 ## Changelog
+
+### 0.5.0
+
+- **New `marketplace` module** — browse the digital-goods marketplace
+  (`catalog` / `categories` / `filters`) and purchase (`quote` / `buy` /
+  `orders` / `order` / `reveal`). The public catalog supports attribute filters
+  (country / origin / format / twofa) and `group_by` = `country` | `attributes`
+  — with `attributes`, same-type products collapse into one card whose variants
+  carry `prices_cents`.
+- **New `proxy.locationsDetail(country, type)`** — per-country residential
+  state / city / ISP geo drill-down for a location picker.
+- Default `userAgent` bumped to `@eveses/sdk-js/0.5.0`.
 
 ### 0.4.0
 
