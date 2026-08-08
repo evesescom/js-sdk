@@ -196,6 +196,46 @@ await client.emails.markRead(inbox.address, page.items[0].id);
 await client.emails.release(inbox.address);             // delete the inbox early
 ```
 
+## Marketplace
+
+Browse the provider-agnostic digital-goods storefront and buy from it. The upstream
+supplier is **never** exposed — products are described purely by normalized attributes:
+`country` (ISO-3166-1 alpha-2, e.g. `US`, or a region slug: `mix` / `cis` / `eu` /
+`asia` / `africa` / `latam`), `origin` (`autoreg` | `selfreg` | `real` | `retrieve`),
+`format` (`tdata` | `session_json` | `session`), and `twofa` (boolean). The catalogue,
+categories, and filters live on the public API; quote / buy / orders are authenticated.
+
+```ts
+// Discover what you can filter and browse by
+const filters    = await client.marketplace.filters('accounts');   // facets for one category
+const categories = await client.marketplace.categories();          // all categories
+
+// Browse the catalogue (only the filters you pass are sent)
+const catalog = await client.marketplace.catalog({
+  category: 'accounts',
+  country: 'US',
+  origin: 'autoreg',
+  groupBy: 'attributes',            // 'country' | 'attributes' (maps to group_by)
+});
+// group_by='country'    → items bucketed by country
+// group_by='attributes' → same-type products collapse into one card:
+//   catalog.groups[i].prices_cents  → the per-variant price ladder
+//   catalog.groups[i].has_attributes → whether the group carries attribute variants
+// Plain catalog (no groupBy) returns catalog.items instead.
+
+// Purchase flow: quote → buy → track → reveal
+const quote = await client.marketplace.quote({ category: 'accounts', sku: 'tg-us-autoreg' });
+
+const bought = await client.marketplace.buy(
+  { category: 'accounts', sku: 'tg-us-autoreg', quantity: 2 },
+  { idempotencyKey: crypto.randomUUID() },   // sent as the Idempotency-Key header
+);
+
+const orders = await client.marketplace.orders();         // your marketplace orders
+const one    = await client.marketplace.order(bought.uuid as string);
+const secret = await client.marketplace.reveal(bought.uuid as string);  // delivered secret(s)
+```
+
 ## Trial
 
 Check active trial state across products and subscribe to product trials.
@@ -348,6 +388,10 @@ node --test tests/
 ```
 
 ## Changelog
+
+### 0.5.1
+
+- Docs: added a Marketplace usage section to the README; patch release.
 
 ### 0.5.0
 
