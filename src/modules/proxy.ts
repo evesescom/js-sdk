@@ -43,6 +43,21 @@ export class Proxy {
   }
 
   /**
+   * Per-country residential state / city / ISP geo drill-down for a picker.
+   *
+   * Returns the raw geo payload:
+   * `{ type, country, geo: { country, states:[{code,name,cities?:[{code,name}]}],
+   * cities:[{code,name,isps?:[{code,name}]}], tokens:{country,city,state,isp} } }`.
+   */
+  async locationsDetail(country: string, type: ProxyType = 'residential'): Promise<Record<string, unknown>> {
+    return this.client.request({
+      method: 'GET',
+      path: '/api/v1/proxy/locations/detail',
+      query: { type, country },
+    });
+  }
+
+  /**
    * Estimate a purchase before buying (residential GB or a static selection).
    * Returns the raw quote payload.
    */

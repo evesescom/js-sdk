@@ -4,6 +4,7 @@
 export { Eveses } from './client';
 export { Captcha } from './modules/captcha';
 export { Emails } from './modules/emails';
+export { Marketplace } from './modules/marketplace';
 export { MeModule } from './modules/me';
 export { Numbers } from './modules/numbers';
 export { Orders } from './modules/orders';

@@ -10,6 +10,7 @@ import {
 } from './errors';
 import { Captcha } from './modules/captcha';
 import { Emails } from './modules/emails';
+import { Marketplace } from './modules/marketplace';
 import { MeModule } from './modules/me';
 import { Numbers } from './modules/numbers';
 import { Orders } from './modules/orders';
@@ -23,7 +24,7 @@ import { Webhooks } from './modules/webhooks';
 
 const DEFAULT_BASE_URL = 'https://api.eveses.io';
 const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.4.0';
+const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.5.0';
 
 /** Internal request shape used by every module. */
 export interface RequestOptions {
@@ -48,6 +49,7 @@ export class Eveses {
   public readonly captcha: Captcha;
   public readonly emails: Emails;
   public readonly proxy: Proxy;
+  public readonly marketplace: Marketplace;
   public readonly trial: Trial;
   public readonly webUnblocker: WebUnblocker;
   public readonly orders: Orders;
@@ -87,6 +89,7 @@ export class Eveses {
     this.captcha = new Captcha(this);
     this.emails = new Emails(this);
     this.proxy = new Proxy(this);
+    this.marketplace = new Marketplace(this);
     this.trial = new Trial(this);
     this.webUnblocker = new WebUnblocker(this);
     this.orders = new Orders(this);
