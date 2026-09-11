@@ -24,7 +24,7 @@ import { Webhooks } from './modules/webhooks';
 
 const DEFAULT_BASE_URL = 'https://api.eveses.io';
 const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.5.1';
+const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.6.0';
 
 /** Internal request shape used by every module. */
 export interface RequestOptions {

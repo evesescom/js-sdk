@@ -72,6 +72,9 @@ export class Proxy {
       query.plan_id = req.selection.planId;
       query.location_id = req.selection.locationId;
       query.quantity = req.quantity ?? 1;
+      for (const [questionId, answer] of Object.entries(req.extraRequirements ?? {})) {
+        query[`extra_requirements[${questionId}]`] = String(answer);
+      }
     }
     return this.client.request({ method: 'GET', path: '/api/v1/proxy/quote', query });
   }
@@ -92,6 +95,12 @@ export class Proxy {
       body.location_id = req.selection.locationId;
       if (req.selection.locationName !== undefined) body.location_name = req.selection.locationName;
       body.quantity = req.selection.quantity ?? 1;
+      if (req.extraRequirements && Object.keys(req.extraRequirements).length > 0) {
+        body.extra_requirements = req.extraRequirements;
+      }
+      if (req.extraRequirementLabels && Object.keys(req.extraRequirementLabels).length > 0) {
+        body.extra_requirement_labels = req.extraRequirementLabels;
+      }
     }
 
     const res = await this.client.request<Record<string, unknown>>({

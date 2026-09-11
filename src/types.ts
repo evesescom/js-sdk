@@ -244,6 +244,15 @@ export interface ProxyQuoteRequest {
   selection?: ProxyStaticSelection;
   /** Number of IPs (per-IP types only; default 1). */
   quantity?: number;
+  /**
+   * Paid options, keyed by the upstream question id from `pricing()`.
+   *
+   * They MOVE THE PRICE, often steeply — measured on one US ISP address:
+   * $2.00 plain, $5.00 with three-device access, $5.60 with a location request
+   * on top. Quote with exactly the answers you intend to buy with, or you will
+   * be shown one price and charged another.
+   */
+  extraRequirements?: Record<string, string>;
 }
 
 /** Input to `client.proxy.purchase`. */
@@ -256,6 +265,16 @@ export interface ProxyPurchaseRequest {
   subscription?: boolean;
   /** Product/plan/location + quantity (per-IP types only). */
   selection?: ProxyStaticSelection;
+  /**
+   * Send the SAME answers the quote was taken with: buying without them after
+   * quoting with them sells at the plain price and leaves the premium unpaid.
+   *
+   * A free-text answer (a city, a subnet) is a REQUEST, not a reservation — an
+   * order that cannot be filled is cancelled and refunded.
+   */
+  extraRequirements?: Record<string, string>;
+  /** Optional labels, stored on the order so it reads "Multi-device access: 3 Devices". */
+  extraRequirementLabels?: Record<string, string>;
   /** Idempotency key — replays return the same order. Sent as Idempotency-Key. */
   idempotencyKey?: string;
 }

@@ -107,7 +107,7 @@ test('non-2xx maps to typed error subclasses', async () => {
   ]);
   const c2 = new Eveses({ apiKey: 'k', baseUrl: 'https://x.test', fetch: fnVal });
   await assert.rejects(
-    c2.activations.create({ country: '', service: 'telegram' }),
+    c2.numbers.create({ country: '', service: 'telegram' }),
     (err: unknown) => {
       assert.ok(err instanceof EvesesValidationError);
       assert.equal((err as EvesesValidationError).status, 422);
