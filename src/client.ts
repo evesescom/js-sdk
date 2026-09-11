@@ -18,13 +18,14 @@ import { Pricing } from './modules/pricing';
 import { Proxy } from './modules/proxy';
 import { QuotasModule } from './modules/quotas';
 import { Trial } from './modules/trial';
+import { Billing } from './modules/billing';
 import { Wallet } from './modules/wallet';
 import { WebUnblocker } from './modules/webUnblocker';
 import { Webhooks } from './modules/webhooks';
 
 const DEFAULT_BASE_URL = 'https://api.eveses.io';
 const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.6.0';
+const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.7.0';
 
 /** Internal request shape used by every module. */
 export interface RequestOptions {
@@ -34,6 +35,13 @@ export interface RequestOptions {
   body?: unknown;
   /** Header overrides for this single request (e.g. Idempotency-Key). */
   headers?: Record<string, string>;
+  /**
+   * Return the body as bytes rather than parsed text.
+   *
+   * Needed for anything that is not text: a PDF read as a string arrives
+   * corrupted, silently, and only fails when somebody opens the file.
+   */
+  raw?: boolean;
 }
 
 /**
@@ -46,6 +54,7 @@ export interface RequestOptions {
 export class Eveses {
   public readonly numbers: Numbers;
   public readonly wallet: Wallet;
+  public readonly billing: Billing;
   public readonly captcha: Captcha;
   public readonly emails: Emails;
   public readonly proxy: Proxy;
@@ -86,6 +95,7 @@ export class Eveses {
 
     this.numbers = new Numbers(this);
     this.wallet = new Wallet(this);
+    this.billing = new Billing(this);
     this.captcha = new Captcha(this);
     this.emails = new Emails(this);
     this.proxy = new Proxy(this);
@@ -126,10 +136,10 @@ export class Eveses {
       body = JSON.stringify(opts.body);
     }
 
-    return this.executeWithRetry<T>(url, { method: opts.method, headers, body });
+    return this.executeWithRetry<T>(url, { method: opts.method, headers, body }, 0, opts.raw === true);
   }
 
-  private async executeWithRetry<T>(url: string, init: RequestInit, attempt = 0): Promise<T> {
+  private async executeWithRetry<T>(url: string, init: RequestInit, attempt = 0, raw = false): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let response: Response;
@@ -146,14 +156,22 @@ export class Eveses {
       const retryAfter = parseRetryAfter(response.headers.get('Retry-After'));
       // 1 retry only, per spec.
       await sleep(retryAfter * 1000);
-      return this.executeWithRetry<T>(url, init, attempt + 1);
+      return this.executeWithRetry<T>(url, init, attempt + 1, raw);
     }
 
-    return this.parseResponse<T>(response);
+    return this.parseResponse<T>(response, raw);
   }
 
-  private async parseResponse<T>(response: Response): Promise<T> {
+  private async parseResponse<T>(response: Response, raw = false): Promise<T> {
     const contentType = response.headers.get('Content-Type') ?? '';
+
+    // Anything that is not text has to come back as bytes. A PDF read through
+    // response.text() arrives corrupted, silently, and only fails when somebody
+    // opens the file.
+    if (raw && response.ok) {
+      return new Uint8Array(await response.arrayBuffer()) as unknown as T;
+    }
+
     let parsed: unknown = undefined;
     if (contentType.includes('application/json')) {
       try {

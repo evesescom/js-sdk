@@ -12,6 +12,8 @@ export { Pricing } from './modules/pricing';
 export { Proxy } from './modules/proxy';
 export { QuotasModule } from './modules/quotas';
 export { Trial } from './modules/trial';
+export { Billing } from './modules/billing';
+export type { BillingProfile, Invoice, InvoiceLine } from './modules/billing';
 export { Wallet } from './modules/wallet';
 export { WebUnblocker } from './modules/webUnblocker';
 export { Webhooks } from './modules/webhooks';
