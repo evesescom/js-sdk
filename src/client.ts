@@ -23,7 +23,7 @@ import { Wallet } from './modules/wallet';
 import { WebUnblocker } from './modules/webUnblocker';
 import { Webhooks } from './modules/webhooks';
 
-const DEFAULT_BASE_URL = 'https://api.eveses.io';
+const DEFAULT_BASE_URL = 'https://api.eveses.com';
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_USER_AGENT = '@eveses/sdk-js/0.7.0';
 

@@ -149,3 +149,10 @@ test('Webhooks.verify rejects stale timestamps outside tolerance', () => {
   // But passes when tolerance disabled.
   assert.equal(Webhooks.verify(body, sig, secret, { timestamp: ts, toleranceSeconds: 0 }), true);
 });
+
+test('default baseUrl is api.eveses.com', async () => {
+  const { fn, calls } = makeFetch([{ status: 200, body: {} }]);
+  const client = new Eveses({ apiKey: 'k', fetch: fn });
+  await client.me.get().catch(() => undefined);
+  assert.equal(new URL(calls[0].url).host, 'api.eveses.com');
+});

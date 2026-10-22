@@ -127,7 +127,7 @@ export interface CatalogPricingResponse {
 export interface EvesesOptions {
   /** Sanctum API token (kind=api_key). Required. */
   apiKey: string;
-  /** Base URL. Defaults to https://api.eveses.io. */
+  /** Base URL. Defaults to https://api.eveses.com. */
   baseUrl?: string;
   /** Request timeout in ms (default 30_000). */
   timeoutMs?: number;

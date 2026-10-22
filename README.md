@@ -23,7 +23,7 @@ import { Eveses } from '@eveses/sdk';
 
 const client = new Eveses({
   apiKey: process.env.EVESES_API_KEY!,
-  // baseUrl defaults to https://api.eveses.io
+  // baseUrl defaults to https://api.eveses.com
 });
 
 const order = await client.numbers.create({
@@ -371,7 +371,7 @@ provide cross-product aggregates. Every `/v1` response also carries
 ```ts
 new Eveses({
   apiKey: '…',
-  baseUrl: 'https://api.eveses.io', // override per environment
+  baseUrl: 'https://api.eveses.com', // override per environment
   timeoutMs: 30_000,
   fetch: globalThis.fetch,           // inject for tests
   defaultHeaders: { 'X-Trace-Id': 't1' },
